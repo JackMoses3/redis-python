@@ -48,7 +48,7 @@ def load_rdb_file():
                 if expiry_size == 8:
                     expiry_value = struct.unpack(">Q", data[pos:pos+8])[0] // 1000  # Convert microseconds to milliseconds
                 else:
-                    expiry_value = struct.unpack(">I", data[pos:pos+4])[0] * 1000
+                    expiry_value = struct.unpack(">I", data[pos:pos+4])[0] * 1000  # Convert seconds to milliseconds
                 pos += expiry_size
                 expiry = expiry_value
                 continue
@@ -193,6 +193,7 @@ def connect(connection: socket.socket) -> None:
                         current_time = int(time.time() * 1000)
                         if key in store:
                             value, expiry = store[key]
+                            print(f"Checking expiry for key {key}: expiry={expiry}, current_time={current_time}")
                             if expiry and current_time > expiry:
                                 print(f"Key {key} has expired. Removing from store.")
                                 del store[key]
