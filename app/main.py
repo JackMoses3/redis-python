@@ -46,7 +46,7 @@ def load_rdb_file():
                     print("Error: Not enough data for expiry time.")
                     break
                 if expiry_size == 8:
-                    expiry_value = struct.unpack(">Q", data[pos:pos+8])[0]
+                    expiry_value = struct.unpack(">Q", data[pos:pos+8])[0] // 1000  # Convert microseconds to milliseconds
                 else:
                     expiry_value = struct.unpack(">I", data[pos:pos+4])[0] * 1000
                 pos += expiry_size
@@ -85,8 +85,9 @@ def load_rdb_file():
                 value = data[pos:pos+value_length].decode("utf-8", errors="ignore").strip()
                 pos += value_length
 
-                if expiry is not None and time.time() * 1000 > expiry:
+                if expiry is not None and expiry < int(time.time() * 1000):  # Expired
                     print(f"Skipping expired key: {key}")
+                    continue
                 else:
                     store[key] = (value, expiry)
                     print(f"Loaded key-value pair: {key} -> {value} with expiry {expiry}")
@@ -189,10 +190,12 @@ def connect(connection: socket.socket) -> None:
                         response = "+OK\r\n"
                     elif cmd == "GET" and len(args) > 1:
                         key = args[1]
+                        current_time = int(time.time() * 1000)
                         if key in store:
                             value, expiry = store[key]
-                            if expiry and time.time() * 1000 > expiry:
-                                del store[key]  # Remove expired key
+                            if expiry and current_time > expiry:
+                                print(f"Key {key} has expired. Removing from store.")
+                                del store[key]
                                 response = "$-1\r\n"
                             else:
                                 response = f"${len(value)}\r\n{value}\r\n"
