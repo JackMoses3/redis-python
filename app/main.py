@@ -216,8 +216,13 @@ def connect(connection: socket.socket) -> None:
                         response = "+OK\r\n"
                         # Propagate SET command to replica if connected
                         if replica_connection:
-                            command_to_replicate = f"*{len(args)}\r\n" + "".join(f"${len(arg)}\r\n{arg}\r\n" for arg in args)
-                            replica_connection.sendall(command_to_replicate.encode())
+                            try:
+                                command_to_replicate = f"*{len(args)}\r\n" + "".join(f"${len(arg)}\r\n{arg}\r\n" for arg in args)
+                                print(f"Propagating to replica: {command_to_replicate.strip()}")
+                                replica_connection.sendall(command_to_replicate.encode())
+                            except Exception as e:
+                                print(f"Error propagating SET to replica: {e}")
+                                replica_connection = None  # Reset connection on failure
                     elif cmd == "DEL" and len(args) >= 2:
                         key = args[1]
                         if key in store:
@@ -227,8 +232,13 @@ def connect(connection: socket.socket) -> None:
                             response = ":0\r\n"
                         # Propagate DEL command to replica if connected
                         if replica_connection:
-                            command_to_replicate = f"*{len(args)}\r\n" + "".join(f"${len(arg)}\r\n{arg}\r\n" for arg in args)
-                            replica_connection.sendall(command_to_replicate.encode())
+                            try:
+                                command_to_replicate = f"*{len(args)}\r\n" + "".join(f"${len(arg)}\r\n{arg}\r\n" for arg in args)
+                                print(f"Propagating to replica: {command_to_replicate.strip()}")
+                                replica_connection.sendall(command_to_replicate.encode())
+                            except Exception as e:
+                                print(f"Error propagating DEL to replica: {e}")
+                                replica_connection = None  # Reset connection on failure
                     elif cmd == "GET" and len(args) > 1:
                         key = args[1]
                         current_time = int(time.time() * 1000)
