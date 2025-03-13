@@ -8,7 +8,8 @@ import struct
 store = {}  # Key-value storage with expiry support
 config = {
     "dir": "/tmp",  # Default values
-    "dbfilename": "dump.rdb"
+    "dbfilename": "dump.rdb",
+    "port": 6379  # Default port
 }
 
 def load_rdb_file():
@@ -122,13 +123,21 @@ def parse_length_encoding(data, pos):
         return 0, 1  # Default case (unexpected data)
 
 def parse_args():
-    """Parses command-line arguments for --dir and --dbfilename."""
+    """Parses command-line arguments for --dir, --dbfilename, and --port."""
     args = sys.argv[1:]
     for i in range(len(args) - 1):
         if args[i] == "--dir":
             config["dir"] = args[i + 1]
         elif args[i] == "--dbfilename":
             config["dbfilename"] = args[i + 1]
+        elif args[i] == "--port":
+            try:
+                config["port"] = int(args[i + 1])
+            except ValueError:
+                print("Invalid port number. Using default port 6379.")
+                config["port"] = 6379
+    if "port" not in config:
+        config["port"] = 6379  # Default to 6379 if not set
 
 def parse_resp(command: str) -> list[str]:
     """Parses a RESP-encoded command string into a list of arguments."""
@@ -237,12 +246,13 @@ def connect(connection: socket.socket) -> None:
 def main() -> None:
     parse_args()  # Parse CLI arguments
     load_rdb_file()  # Load RDB file on startup
-    server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
+    server_socket = socket.create_server(("localhost", config["port"]), reuse_port=True)
+    print(f"Server started on port {config['port']}")  # Debugging log
     while True:
         connection: socket.socket
         address: tuple[str, int]
         connection, address = server_socket.accept()
-        print(f"accepted connection - {address[0]}:{str(address[1])}")
+        print(f"Accepted connection - {address[0]}:{str(address[1])}")
         thread: threading.Thread = threading.Thread(target=connect, args=[connection])
         thread.start()
 
