@@ -48,7 +48,7 @@ def load_rdb_file():
                 if pos + key_length <= len(data):
                     key = data[pos:pos+key_length].decode("utf-8", errors="ignore").strip()
                     pos += key_length
-                    if key.isprintable():
+                    if key and key.isprintable():  # Ensure key is non-empty
                         print(f"Extracted key from RDB: {key}")
                         store[key] = (None, None)  # Store key with no value or expiry
                         return  # Return after storing the first valid key
@@ -57,6 +57,8 @@ def load_rdb_file():
         print(f"Error reading RDB file: {e}")
 
     print("No valid key found in RDB file.")
+    store.clear()  # Clear store if no valid key is found
+    return  # Ensure the function returns after processing
 
 def parse_length_encoding(data, pos):
     """Parses the length encoding in an RDB file."""
