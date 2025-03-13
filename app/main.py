@@ -1,8 +1,21 @@
 import socket
 import threading
-import time
+import sys
 
-store = {}  # Key-value storage with expiry support
+store = {}  # Key-value storage
+config = {
+    "dir": "/tmp",  # Default values
+    "dbfilename": "dump.rdb"
+}
+
+def parse_args():
+    """Parses command-line arguments for --dir and --dbfilename."""
+    args = sys.argv[1:]
+    for i in range(len(args) - 1):
+        if args[i] == "--dir":
+            config["dir"] = args[i + 1]
+        elif args[i] == "--dbfilename":
+            config["dbfilename"] = args[i + 1]
 
 def parse_resp(command: str) -> list[str]:
     """Parses a RESP-encoded command string into a list of arguments."""
@@ -25,7 +38,7 @@ def parse_resp(command: str) -> list[str]:
     return args
 
 def connect(connection: socket.socket) -> None:
-    global store  # Use the shared dictionary
+    global store, config  # Use the shared dictionary and config
     with connection:
         buffer = ""
         while True:
@@ -54,27 +67,22 @@ def connect(connection: socket.socket) -> None:
                         response = f"${len(msg)}\r\n{msg}\r\n"
                     elif cmd == "SET" and len(args) > 2:
                         key, value = args[1], args[2]
-                        expiry = None
-                        if len(args) > 4 and args[3].upper() == "PX":
-                            try:
-                                expiry = int(args[4])
-                                expiry = time.time() * 1000 + expiry  # Convert to absolute expiry time
-                            except ValueError:
-                                response = "-ERR PX value must be an integer\r\n"
-
-                        store[key] = (value, expiry)
+                        store[key] = value
                         response = "+OK\r\n"
                     elif cmd == "GET" and len(args) > 1:
                         key = args[1]
                         if key in store:
-                            value, expiry = store[key]
-                            if expiry and time.time() * 1000 > expiry:
-                                del store[key]  # Remove expired key
-                                response = "$-1\r\n"
-                            else:
-                                response = f"${len(value)}\r\n{value}\r\n"
+                            value = store[key]
+                            response = f"${len(value)}\r\n{value}\r\n"
                         else:
                             response = "$-1\r\n"  # Null bulk string for missing keys
+                    elif cmd == "CONFIG" and len(args) == 3 and args[1].upper() == "GET":
+                        param = args[2]
+                        if param in config:
+                            value = config[param]
+                            response = f"*2\r\n${len(param)}\r\n{param}\r\n${len(value)}\r\n{value}\r\n"
+                        else:
+                            response = "$-1\r\n"  # Null response for unknown parameters
                     else:
                         response = "-ERR unknown command\r\n"
 
@@ -89,6 +97,7 @@ def connect(connection: socket.socket) -> None:
                 break
 
 def main() -> None:
+    parse_args()  # Parse CLI arguments
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
     while True:
         connection: socket.socket
