@@ -192,14 +192,14 @@ def connect(connection: socket.socket) -> None:
                         role = "slave" if "replicaof" in config else "master"
                         master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"  # Hardcoded replication ID
                         master_repl_offset = 0  # Initial offset
-
+                        
                         info_response = (
                             f"role:{role}\r\n"
                             f"master_replid:{master_replid}\r\n"
-                            f"master_repl_offset:{master_repl_offset}\r\n"
-                        )
+                            f"master_repl_offset:{master_repl_offset}"
+                        )  # No trailing \r\n to avoid length miscalculation
                         
-                        response = f"${len(info_response.encode('utf-8'))}\r\n{info_response}"  # Use correct length calculation
+                        response = f"${len(info_response.encode('utf-8'))}\r\n{info_response}\r\n"  # Append \r\n separately
                     elif cmd == "SET" and len(args) > 2:
                         key, value = args[1], args[2]
                         expiry = None
