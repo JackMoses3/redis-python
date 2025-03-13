@@ -194,14 +194,12 @@ def connect(connection: socket.socket) -> None:
                         if key in store:
                             value, expiry = store[key]
                             print(f"Checking expiry for key {key}: expiry={expiry}, current_time={current_time}")
-                            if expiry:
-                                expiry = expiry // 1000  # Convert microseconds to milliseconds
-                                if current_time > expiry:
-                                    print(f"Key {key} has expired. Removing from store.")
-                                    del store[key]
-                                    response = "$-1\r\n"
+                            if expiry and current_time > expiry:
+                                print(f"Key {key} has expired. Removing from store.")
+                                del store[key]
+                                response = "$-1\r\n"  # Ensure proper null bulk string response
                             else:
-                                response = f"${len(value)}\r\n{value}\r\n"
+                                response = f"${len(value)}\r\n{value}\r\n"  # Return bulk string
                         else:
                             response = "$-1\r\n"  # Null bulk string for missing keys
                     elif cmd == "CONFIG" and len(args) == 3 and args[1].upper() == "GET":
