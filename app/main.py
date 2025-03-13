@@ -123,7 +123,7 @@ def parse_length_encoding(data, pos):
         return 0, 1  # Default case (unexpected data)
 
 def parse_args():
-    """Parses command-line arguments for --dir, --dbfilename, and --port."""
+    """Parses command-line arguments for --dir, --dbfilename, --port, and --replicaof."""
     args = sys.argv[1:]
     for i in range(len(args) - 1):
         if args[i] == "--dir":
@@ -136,6 +136,8 @@ def parse_args():
             except ValueError:
                 print("Invalid port number. Using default port 6379.")
                 config["port"] = 6379
+        elif args[i] == "--replicaof":
+            config["replicaof"] = args[i + 1].split()
     if "port" not in config:
         config["port"] = 6379  # Default to 6379 if not set
 
@@ -187,7 +189,8 @@ def connect(connection: socket.socket) -> None:
                         msg = args[1]
                         response = f"${len(msg)}\r\n{msg}\r\n"
                     elif cmd == "INFO" and len(args) == 2 and args[1].upper() == "REPLICATION":
-                        response = "$11\r\nrole:master\r\n"
+                        role = "slave" if "replicaof" in config else "master"
+                        response = f"$11\r\nrole:{role}\r\n"
                     elif cmd == "SET" and len(args) > 2:
                         key, value = args[1], args[2]
                         expiry = None
