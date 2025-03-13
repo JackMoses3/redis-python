@@ -255,7 +255,7 @@ def connect(connection: socket.socket) -> None:
                             "fa0b6372656174652d7478c03dce1f2d59fa0c617578696c696172"
                             "790403b6a962f000ff"
                         )
-                        empty_rdb_response = f"${{len(empty_rdb_hex)}}\r\n".encode() + empty_rdb_hex
+                        empty_rdb_response = f"${len(empty_rdb_hex)}\r\n".encode() + empty_rdb_hex
                         connection.sendall(empty_rdb_response)
                         print("Sent empty RDB file to replica")
                     else:
