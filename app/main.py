@@ -1,6 +1,8 @@
 import socket
 import threading
 
+store = {}  # Key-value storage
+
 def parse_resp(command: str) -> list[str]:
     """Parses a RESP-encoded command string into a list of arguments."""
     parts = command.strip().split("\r\n")
@@ -22,6 +24,7 @@ def parse_resp(command: str) -> list[str]:
     return args
 
 def connect(connection: socket.socket) -> None:
+    global store  # Use the shared dictionary
     with connection:
         buffer = ""
         while True:
@@ -48,6 +51,17 @@ def connect(connection: socket.socket) -> None:
                     elif cmd == "ECHO" and len(args) > 1:
                         msg = args[1]
                         response = f"${len(msg)}\r\n{msg}\r\n"
+                    elif cmd == "SET" and len(args) > 2:
+                        key, value = args[1], args[2]
+                        store[key] = value
+                        response = "+OK\r\n"
+                    elif cmd == "GET" and len(args) > 1:
+                        key = args[1]
+                        if key in store:
+                            value = store[key]
+                            response = f"${len(value)}\r\n{value}\r\n"
+                        else:
+                            response = "$-1\r\n"  # Null bulk string for missing keys
                     else:
                         response = "-ERR unknown command\r\n"
 
