@@ -35,42 +35,40 @@ def extract_key_from_rdb(data):
     """Parses an RDB file and extracts the first key."""
     try:
         pos = 9  # Skip the RDB header (first 9 bytes)
-        
+
         while pos < len(data):
             byte = data[pos]
             pos += 1
 
-            if byte == 0xFE:  # FE marks a database selector
-                db_number = data[pos]
-                pos += 1
+            if byte == 0xFE:  # Database selector
+                pos += 1  # Skip database number
                 continue
 
-            if byte == 0xFD:  # FD marks an expiry time (seconds)
-                pos += 4  # Skip 4-byte expiry time
+            if byte in {0xFD, 0xFC}:  # Expiry times (seconds or milliseconds)
+                pos += 4 if byte == 0xFD else 8
                 continue
 
-            if byte == 0xFC:  # FC marks an expiry time (milliseconds)
-                pos += 8  # Skip 8-byte expiry time
-                continue
-
-            if 0x00 <= byte <= 0xFA:  # This is an encoded object type
+            if 0x00 <= byte <= 0xFA:  # Encoded object type (first key indicator)
                 key_length = byte
-            elif byte == 0xFB:  # FB marks an 8-bit length
+            elif byte == 0xFB:  # 8-bit length
                 key_length = data[pos]
                 pos += 1
-            elif byte == 0xFC:  # FC marks a 16-bit length
+            elif byte == 0xFC:  # 16-bit length
                 key_length = struct.unpack(">H", data[pos:pos+2])[0]
                 pos += 2
-            elif byte == 0xFD:  # FD marks a 32-bit length
+            elif byte == 0xFD:  # 32-bit length
                 key_length = struct.unpack(">I", data[pos:pos+4])[0]
                 pos += 4
             else:
                 continue  # Skip unknown byte
 
-            # Extract the key
-            key = data[pos:pos+key_length].decode("utf-8", errors="ignore")
-            pos += key_length
-            return key
+            if key_length > 0 and pos + key_length <= len(data):
+                key = data[pos:pos+key_length].decode("utf-8", errors="ignore")
+                pos += key_length
+                if key.isprintable():
+                    return key  # Ensure it's a valid key
+                else:
+                    print(f"Invalid key extracted: {key}")
 
     except Exception as e:
         print(f"Error extracting key from RDB: {e}")
