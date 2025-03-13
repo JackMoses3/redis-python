@@ -40,35 +40,39 @@ def extract_key_from_rdb(data):
             byte = data[pos]
             pos += 1
 
-            if byte == 0xFE:  # Database selector
+            if byte == 0xFE:  # Database selector (start of key-value pairs)
                 pos += 1  # Skip database number
                 continue
 
-            if byte in {0xFD, 0xFC}:  # Expiry times (seconds or milliseconds)
+            if byte in {0xFD, 0xFC}:  # Expiry time (seconds or milliseconds)
                 pos += 4 if byte == 0xFD else 8
                 continue
 
-            if 0x00 <= byte <= 0xFA:  # Encoded object type (first key indicator)
-                key_length = byte
-            elif byte == 0xFB:  # 8-bit length
-                key_length = data[pos]
-                pos += 1
-            elif byte == 0xFC:  # 16-bit length
-                key_length = struct.unpack(">H", data[pos:pos+2])[0]
-                pos += 2
-            elif byte == 0xFD:  # 32-bit length
-                key_length = struct.unpack(">I", data[pos:pos+4])[0]
-                pos += 4
-            else:
-                continue  # Skip unknown byte
+            if byte in {0x00, 0x01, 0x02, 0x03}:  # Object type (string, list, hash, set, etc.)
+                key_length_byte = data[pos]
+                pos += 1  # Move to key length section
 
-            if key_length > 0 and pos + key_length <= len(data):
-                key = data[pos:pos+key_length].decode("utf-8", errors="ignore")
-                pos += key_length
-                if key.isprintable():
-                    return key  # Ensure it's a valid key
+                # Determine key length
+                if key_length_byte < 0x80:  # 7-bit encoded string
+                    key_length = key_length_byte
+                elif key_length_byte == 0x81:  # 8-bit length
+                    key_length = data[pos]
+                    pos += 1
+                elif key_length_byte == 0x82:  # 16-bit length
+                    key_length = struct.unpack(">H", data[pos:pos+2])[0]
+                    pos += 2
+                elif key_length_byte == 0x83:  # 32-bit length
+                    key_length = struct.unpack(">I", data[pos:pos+4])[0]
+                    pos += 4
                 else:
-                    print(f"Invalid key extracted: {key}")
+                    continue  # Unknown encoding, skip
+
+                # Extract the key
+                if pos + key_length <= len(data):
+                    key = data[pos:pos+key_length].decode("utf-8", errors="ignore")
+                    pos += key_length
+                    if key.isprintable():
+                        return key  # Ensure extracted key is valid
 
     except Exception as e:
         print(f"Error extracting key from RDB: {e}")
