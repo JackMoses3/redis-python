@@ -25,75 +25,63 @@ def load_rdb_file():
         pos = 9  # Skip 'REDIS' + version header (9 bytes)
 
         while pos < len(data):
-            if pos >= len(data):
-                break  # Prevents index out of range
-
             byte = data[pos]
             pos += 1
 
+            if byte == 0xFA:  # Auxiliary fields (skip them)
+                aux_key_length, key_size = parse_length_encoding(data, pos)
+                pos += key_size
+                aux_value_length, value_size = parse_length_encoding(data, pos)
+                pos += value_size + aux_key_length + aux_value_length
+                continue
+
             if byte == 0xFE:  # Database selector
-                db_number, db_number_size = parse_length_encoding(data, pos)
-                pos += db_number_size
+                db_number, db_size = parse_length_encoding(data, pos)
+                pos += db_size
                 print(f"Selecting database {db_number}")
                 continue
 
-            if byte == 0xFD:  # Expiry time in seconds
-                expiry, expiry_size = struct.unpack(">I", data[pos:pos+4])[0], 4
-                pos += expiry_size
-                continue
-
-            if byte == 0xFC:  # Expiry time in milliseconds
-                expiry, expiry_size = struct.unpack(">Q", data[pos:pos+8])[0], 8
+            if byte in [0xFD, 0xFC]:  # Expiry time
+                expiry_size = 8 if byte == 0xFC else 4
                 pos += expiry_size
                 continue
 
             if byte == 0xFB:  # RESIZEDB opcode
-                db_size, db_size_size = parse_length_encoding(data, pos)
-                pos += db_size_size
-                expiry_size, expiry_size_size = parse_length_encoding(data, pos)
-                pos += expiry_size_size
-                print(f"Resized DB: main size = {db_size}, expiry size = {expiry_size}")
-                continue
-
-            if 0x00 <= byte <= 0x06:  # Object type (string, list, etc.)
-                if pos >= len(data):
-                    break  # Avoid reading past buffer
-
-                key_length, key_length_size = parse_length_encoding(data, pos)
-                pos += key_length_size
-
-                if pos + key_length > len(data):
-                    print("Error: Key length exceeds data size.")
-                    break
-
-                key = data[pos:pos+key_length].decode("utf-8", errors="ignore").strip()
-                pos += key_length
-
-                if pos >= len(data):
-                    break
-
-                value_length, value_length_size = parse_length_encoding(data, pos)
-                pos += value_length_size
-
-                if pos + value_length > len(data):
-                    print("Error: Value length exceeds data size.")
-                    break
-
-                value = data[pos:pos+value_length].decode("utf-8", errors="ignore").strip()
-                pos += value_length
-
-                if key and value:
-                    store[key] = (value, None)
-                    print(f"Loaded key-value pair from RDB: {key} -> {value}")
-                else:
-                    print(f"Invalid key or value encountered. Key: {key}, Value: {value}")
+                main_size, main_size_bytes = parse_length_encoding(data, pos)
+                pos += main_size_bytes
+                expiry_size, expiry_size_bytes = parse_length_encoding(data, pos)
+                pos += expiry_size_bytes
                 continue
 
             if byte == 0xFF:  # End of RDB file
                 print("End of RDB file reached.")
                 break
 
-            # Handle unexpected bytes gracefully
+            if 0x00 <= byte <= 0x06:  # Object type (String, List, etc.)
+                key_length, key_length_size = parse_length_encoding(data, pos)
+                pos += key_length_size
+
+                if pos + key_length > len(data):
+                    print(f"Error: Key length exceeds data size at position {pos}.")
+                    break
+
+                key = data[pos:pos+key_length].decode("utf-8", errors="ignore").strip()
+                pos += key_length
+
+                value_length, value_length_size = parse_length_encoding(data, pos)
+                pos += value_length_size
+
+                if pos + value_length > len(data):
+                    print(f"Error: Value length exceeds data size at position {pos}.")
+                    break
+
+                value = data[pos:pos+value_length].decode("utf-8", errors="ignore").strip()
+                pos += value_length
+
+                store[key] = (value, None)
+                print(f"Loaded key-value pair: {key} -> {value}")
+                continue
+
             print(f"Encountered unknown byte: {byte}. Skipping...")
             continue
 
