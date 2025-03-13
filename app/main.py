@@ -25,6 +25,9 @@ def load_rdb_file():
         pos = 9  # Skip 'REDIS' + version header (9 bytes)
 
         while pos < len(data):
+            if pos >= len(data):
+                break  # Prevents index out of range
+
             byte = data[pos]
             pos += 1
 
@@ -53,20 +56,34 @@ def load_rdb_file():
                 continue
 
             if 0x00 <= byte <= 0x06:  # Object type (string, list, etc.)
-                # Parse key
+                if pos >= len(data):
+                    break  # Avoid reading past buffer
+
                 key_length, key_length_size = parse_length_encoding(data, pos)
                 pos += key_length_size
+
+                if pos + key_length > len(data):
+                    print("Error: Key length exceeds data size.")
+                    break
+
                 key = data[pos:pos+key_length].decode("utf-8", errors="ignore").strip()
                 pos += key_length
 
-                # Parse value
+                if pos >= len(data):
+                    break
+
                 value_length, value_length_size = parse_length_encoding(data, pos)
                 pos += value_length_size
+
+                if pos + value_length > len(data):
+                    print("Error: Value length exceeds data size.")
+                    break
+
                 value = data[pos:pos+value_length].decode("utf-8", errors="ignore").strip()
                 pos += value_length
 
                 if key and value:
-                    store[key] = (value, None)  # Store value without expiry
+                    store[key] = (value, None)
                     print(f"Loaded key-value pair from RDB: {key} -> {value}")
                 else:
                     print(f"Invalid key or value encountered. Key: {key}, Value: {value}")
@@ -76,7 +93,9 @@ def load_rdb_file():
                 print("End of RDB file reached.")
                 break
 
-            print(f"Encountered unknown byte: {byte}")
+            # Handle unexpected bytes gracefully
+            print(f"Encountered unknown byte: {byte}. Skipping...")
+            continue
 
     except Exception as e:
         print(f"Error reading RDB file: {e}")
