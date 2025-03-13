@@ -38,12 +38,13 @@ def connect(connection: socket.socket) -> None:
 
             if cmd == "PING":
                 response = "+PONG\r\n"
-            elif cmd == "ECHO" and len(args) > 1: # if it is an echo you are going to return the length of the string and the string itself
+            elif cmd == "ECHO" and len(args) > 1:
                 msg = args[1]
                 response = f"${len(msg)}\r\n{msg}\r\n"
-            
-            print(f"responding with - {response}")
-            connection.sendall(response.encode())
+
+            if response:
+                print(f"responding with - {response}")
+                connection.sendall(response.encode())
 
 def main() -> None:
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
