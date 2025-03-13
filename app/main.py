@@ -23,6 +23,7 @@ def load_rdb_file():
 
     try:
         pos = 9  # Skip 'REDIS' + version header (9 bytes)
+        expiry = None
 
         while pos < len(data):
             byte = data[pos]
@@ -41,7 +42,15 @@ def load_rdb_file():
 
             if byte in [0xFD, 0xFC]:  # Expiry time
                 expiry_size = 8 if byte == 0xFC else 4
+                if pos + expiry_size > len(data):
+                    print("Error: Not enough data for expiry time.")
+                    break
+                if expiry_size == 8:
+                    expiry_value = struct.unpack(">Q", data[pos:pos+8])[0]
+                else:
+                    expiry_value = struct.unpack(">I", data[pos:pos+4])[0] * 1000
                 pos += expiry_size
+                expiry = expiry_value
                 continue
 
             if byte == 0xFB:  # RESIZEDB opcode
@@ -76,8 +85,12 @@ def load_rdb_file():
                 value = data[pos:pos+value_length].decode("utf-8", errors="ignore").strip()
                 pos += value_length
 
-                store[key] = (value, None)  # No expiry for now
-                print(f"Loaded key-value pair: {key} -> {value}")
+                if expiry is not None and time.time() * 1000 > expiry:
+                    print(f"Skipping expired key: {key}")
+                else:
+                    store[key] = (value, expiry)
+                    print(f"Loaded key-value pair: {key} -> {value} with expiry {expiry}")
+                expiry = None
                 continue
 
             print(f"Encountered unknown byte: {byte}. Skipping...")
@@ -193,9 +206,15 @@ def connect(connection: socket.socket) -> None:
                         else:
                             response = "$-1\r\n"  # Null response for unknown parameters
                     elif cmd == "KEYS" and len(args) == 2 and args[1] == "*":
-                        keys = list(store.keys())
-                        print(f"Stored keys: {keys}")  # Debugging log to check stored keys
-                        response = f"*{len(keys)}\r\n" + "".join(f"${len(k)}\r\n{k}\r\n" for k in keys)
+                        valid_keys = []
+                        for k in list(store.keys()):
+                            value, expiry = store[k]
+                            if expiry and time.time() * 1000 > expiry:
+                                del store[k]
+                            else:
+                                valid_keys.append(k)
+                        print(f"Stored keys (non-expired): {valid_keys}")  # Debugging log
+                        response = f"*{len(valid_keys)}\r\n" + "".join(f"${len(k)}\r\n{k}\r\n" for k in valid_keys)
                     else:
                         response = "-ERR unknown command\r\n"
 
