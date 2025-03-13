@@ -186,6 +186,8 @@ def connect(connection: socket.socket) -> None:
                     elif cmd == "ECHO" and len(args) > 1:
                         msg = args[1]
                         response = f"${len(msg)}\r\n{msg}\r\n"
+                    elif cmd == "INFO" and len(args) == 2 and args[1].upper() == "REPLICATION":
+                        response = "$11\r\nrole:master\r\n"
                     elif cmd == "SET" and len(args) > 2:
                         key, value = args[1], args[2]
                         expiry = None
