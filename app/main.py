@@ -23,6 +23,7 @@ def load_rdb_file():
 
     try:
         pos = 9  # Skip 'REDIS' + version header (9 bytes)
+        found_key = False
 
         while pos < len(data):
             byte = data[pos]
@@ -36,7 +37,7 @@ def load_rdb_file():
                 pos += 4 if byte == 0xFD else 8
                 continue
 
-            if 0x00 <= byte <= 0x06:  # Object type (indicates start of key-value pair)
+            if 0x00 <= byte <= 0x06:  # Object type (string, list, etc.)
                 if pos >= len(data):
                     break
 
@@ -61,14 +62,16 @@ def load_rdb_file():
                 if key and value and key.isprintable():
                     print(f"Extracted key-value from RDB: {key} -> {value}")
                     store[key] = (value, None)  # Store value without expiry
-                    return
+                    found_key = True
+                    return  # Return after storing the first valid key
+
+        if not found_key:
+            print("No valid key-value found in RDB file.")
+            store.clear()  # Ensure no stale data is left
 
     except Exception as e:
         print(f"Error reading RDB file: {e}")
-
-    print("No valid key-value found in RDB file.")
-    store.clear()
-    return
+        store.clear()
 
 def parse_length_encoding(data, pos):
     """Parses the length encoding in an RDB file."""
