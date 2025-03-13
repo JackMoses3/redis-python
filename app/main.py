@@ -30,29 +30,28 @@ def connect(connection: socket.socket) -> None:
                     break
 
                 buffer += data
-                if "\r\n" not in buffer:
-                    continue  # Wait for the full RESP command
 
-                print(f"received - {buffer.strip()}")
+                while "\r\n" in buffer:
+                    print(f"received - {buffer.strip()}")
+                    
+                    args = parse_resp(buffer)
+                    if not args:
+                        break  # Ignore invalid commands
 
-                args = parse_resp(buffer)
-                buffer = ""  # Reset buffer after processing
+                    cmd = args[0].upper()  # Case-insensitive command handling
+                    response: str = ""
 
-                if not args:
-                    continue  # Ignore invalid commands
+                    if cmd == "PING":
+                        response = "+PONG\r\n"
+                    elif cmd == "ECHO" and len(args) > 1:
+                        msg = args[1]
+                        response = f"${len(msg)}\r\n{msg}\r\n"
 
-                cmd = args[0].upper()  # Case-insensitive command handling
-                response: str = ""
+                    if response:
+                        print(f"responding with - {response.strip()}")
+                        connection.sendall(response.encode())
 
-                if cmd == "PING":
-                    response = "+PONG\r\n"
-                elif cmd == "ECHO" and len(args) > 1:
-                    msg = args[1]
-                    response = f"${len(msg)}\r\n{msg}\r\n"
-
-                if response:
-                    print(f"responding with - {response.strip()}")
-                    connection.sendall(response.encode())
+                    buffer = ""  # Clear buffer after processing a full command
 
             except Exception as e:
                 print(f"Error handling request: {e}")
