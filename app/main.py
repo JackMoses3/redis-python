@@ -164,6 +164,36 @@ def parse_resp(command: str) -> list[str]:
             i += 1  # Skip malformed input
     return args
 
+def receive_commands_from_master(replica_socket):
+    """Continuously listen for commands from the master and process them."""
+    buffer = ""
+    while True:
+        try:
+            data = replica_socket.recv(1024).decode()
+            if not data:
+                break
+
+            buffer += data
+            while "\r\n" in buffer:
+                args = parse_resp(buffer)
+                if not args:
+                    buffer = ""
+                    continue
+
+                cmd = args[0].upper()
+
+                if cmd == "SET" and len(args) > 2:
+                    key, value = args[1], args[2]
+                    store[key] = (value, None)  # No expiry support in replication mode
+                elif cmd == "DEL" and len(args) > 1:
+                    key = args[1]
+                    store.pop(key, None)
+
+                buffer = ""  # Clear processed data
+        except Exception as e:
+            print(f"Error receiving commands from master: {e}")
+            break
+
 def connect(connection: socket.socket) -> None:
     global store, config
     global replica_connection
@@ -354,6 +384,7 @@ def main() -> None:
             replica_socket.sendall(psync_command)
             print("Sent PSYNC ? -1 to master")
             replica_connection = replica_socket  # Store the replication connection
+            threading.Thread(target=receive_commands_from_master, args=(replica_socket,)).start()
         except Exception as e:
             print(f"Failed to connect to master: {e}")
     server_socket = socket.create_server(("localhost", config["port"]), reuse_port=True)
