@@ -269,6 +269,16 @@ def main() -> None:
             ping_command = b"*1\r\n$4\r\nPING\r\n"
             replica_socket.sendall(ping_command)
             print("Sent PING to master")
+            
+            # Send REPLCONF listening-port <PORT>
+            listening_port_command = f"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${{len(str(config['port']))}}\r\n{config['port']}\r\n".encode()
+            replica_socket.sendall(listening_port_command)
+            print(f"Sent REPLCONF listening-port {config['port']} to master")
+            
+            # Send REPLCONF capa psync2
+            capa_command = b"*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"
+            replica_socket.sendall(capa_command)
+            print("Sent REPLCONF capa psync2 to master")
         except Exception as e:
             print(f"Failed to connect to master: {e}")
     server_socket = socket.create_server(("localhost", config["port"]), reuse_port=True)
