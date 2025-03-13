@@ -12,7 +12,7 @@ config = {
 }
 
 def load_rdb_file():
-    """Loads a single key-value pair from the RDB file if it exists."""
+    """Loads key-value pairs from the RDB file if it exists."""
     rdb_path = os.path.join(config["dir"], config["dbfilename"])
     if not os.path.exists(rdb_path):
         print("No RDB file found, treating database as empty.")
@@ -23,59 +23,60 @@ def load_rdb_file():
 
     try:
         pos = 9  # Skip 'REDIS' + version header (9 bytes)
-        found_key = False
 
         while pos < len(data):
             byte = data[pos]
             pos += 1
 
-            if byte == 0xFE:  # Database selector (marks key-value start)
-                pos += 1  # Skip database number
+            if byte == 0xFE:  # Database selector
+                db_number, db_number_size = parse_length_encoding(data, pos)
+                pos += db_number_size
+                print(f"Selecting database {db_number}")
                 continue
 
-            if byte in {0xFD, 0xFC}:  # Expiry times (seconds/milliseconds)
-                pos += 4 if byte == 0xFD else 8
+            if byte == 0xFD:  # Expiry time in seconds
+                expiry, expiry_size = struct.unpack(">I", data[pos:pos+4])[0], 4
+                pos += expiry_size
                 continue
 
-            if byte == 0xFB:  # RESIZEDB opcode - indicates key-value pairs follow
-                pos += 2  # Skip DB size and expiry size
+            if byte == 0xFC:  # Expiry time in milliseconds
+                expiry, expiry_size = struct.unpack(">Q", data[pos:pos+8])[0], 8
+                pos += expiry_size
+                continue
+
+            if byte == 0xFB:  # RESIZEDB opcode
+                db_size, db_size_size = parse_length_encoding(data, pos)
+                pos += db_size_size
+                expiry_size, expiry_size_size = parse_length_encoding(data, pos)
+                pos += expiry_size_size
+                print(f"Resized DB: main size = {db_size}, expiry size = {expiry_size}")
                 continue
 
             if 0x00 <= byte <= 0x06:  # Object type (string, list, etc.)
-                if pos >= len(data):
-                    break
-
-                # Extract key length and key
+                # Parse key
                 key_length, key_length_size = parse_length_encoding(data, pos)
                 pos += key_length_size
-                if pos + key_length > len(data):
-                    break
-
                 key = data[pos:pos+key_length].decode("utf-8", errors="ignore").strip()
                 pos += key_length
 
-                # Ensure key is valid before proceeding to value extraction
-                if not key or not key.isprintable():
-                    print(f"Skipping invalid key: {key}")
-                    continue
-
-                # Extract value length and value
+                # Parse value
                 value_length, value_length_size = parse_length_encoding(data, pos)
                 pos += value_length_size
-                if pos + value_length > len(data):
-                    break
-
                 value = data[pos:pos+value_length].decode("utf-8", errors="ignore").strip()
                 pos += value_length
 
-                if value and value.isprintable():
-                    print(f"Extracted key-value from RDB: {key} -> {value}")
+                if key and value:
                     store[key] = (value, None)  # Store value without expiry
-                    found_key = True
+                    print(f"Loaded key-value pair from RDB: {key} -> {value}")
+                else:
+                    print(f"Invalid key or value encountered. Key: {key}, Value: {value}")
+                continue
 
-        if not found_key:
-            print("No valid key-value found in RDB file.")
-            store.clear()  # Ensure no stale data is left
+            if byte == 0xFF:  # End of RDB file
+                print("End of RDB file reached.")
+                break
+
+            print(f"Encountered unknown byte: {byte}")
 
     except Exception as e:
         print(f"Error reading RDB file: {e}")
