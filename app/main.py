@@ -22,37 +22,25 @@ def load_rdb_file():
         data = f.read()
 
     try:
-        key = extract_key_from_rdb(data)
-        if key:
-            print(f"Extracted key from RDB: {key}")
-            store[key] = (None, None)  # Store key with no value or expiry
-        else:
-            print("No valid key found in RDB file.")
-    except Exception as e:
-        print(f"Failed to load RDB file: {e}")
+        pos = 9  # Skip 'REDIS' + version header (9 bytes)
 
-def extract_key_from_rdb(data):
-    """Parses an RDB file and extracts the first valid key."""
-    try:
-        pos = 9  # Skip the RDB header (first 9 bytes: 'REDIS' + version)
-        
         while pos < len(data):
             byte = data[pos]
             pos += 1
 
-            if byte == 0xFE:  # Database selector (marks the start of key-value pairs)
+            if byte == 0xFE:  # Database selector (marks key-value start)
                 pos += 1  # Skip database number
                 continue
 
-            if byte in {0xFD, 0xFC}:  # Expiry times (seconds or milliseconds)
+            if byte in {0xFD, 0xFC}:  # Expiry times (seconds/milliseconds)
                 pos += 4 if byte == 0xFD else 8
                 continue
 
-            if 0x00 <= byte <= 0x06:  # Object type byte (marks the start of a key-value pair)
-                if pos >= len(data):  
-                    break  # Prevent out-of-bounds errors
+            if 0x00 <= byte <= 0x06:  # Object type (string, list, etc.)
+                if pos >= len(data):
+                    break
 
-                # Read key length encoding
+                # Parse key length
                 key_length, key_length_size = parse_length_encoding(data, pos)
                 pos += key_length_size
 
@@ -61,16 +49,17 @@ def extract_key_from_rdb(data):
                     key = data[pos:pos+key_length].decode("utf-8", errors="ignore").strip()
                     pos += key_length
                     if key.isprintable():
-                        return key  # Ensure extracted key is valid
-                    else:
-                        print(f"Invalid key extracted: {key}")
+                        print(f"Extracted key from RDB: {key}")
+                        store[key] = (None, None)  # Store key with no value or expiry
+                        return  # Return after storing the first valid key
 
     except Exception as e:
-        print(f"Error extracting key from RDB: {e}")
-        return None
+        print(f"Error reading RDB file: {e}")
+
+    print("No valid key found in RDB file.")
 
 def parse_length_encoding(data, pos):
-    """Parses the length encoding in an RDB file according to Redis' standard."""
+    """Parses the length encoding in an RDB file."""
     first_byte = data[pos]
 
     if first_byte < 0x80:  # 7-bit integer
