@@ -70,17 +70,21 @@ def extract_key_from_rdb(data):
         return None
 
 def parse_length_encoding(data, pos):
-    """Parses the length encoding in an RDB file."""
+    """Parses the length encoding in an RDB file according to Redis' standard."""
     first_byte = data[pos]
 
     if first_byte < 0x80:  # 7-bit integer
         return first_byte, 1
     elif first_byte == 0x81:  # 8-bit length
         return data[pos + 1], 2
-    elif first_byte == 0x82:  # 16-bit length
+    elif first_byte == 0x82:  # 16-bit length (Big-Endian)
         return struct.unpack(">H", data[pos+1:pos+3])[0], 3
-    elif first_byte == 0x83:  # 32-bit length
+    elif first_byte == 0x83:  # 32-bit length (Big-Endian)
         return struct.unpack(">I", data[pos+1:pos+5])[0], 5
+    elif first_byte == 0x80:  # 32-bit length (Big-Endian for strings)
+        return struct.unpack(">I", data[pos+1:pos+5])[0], 5
+    elif first_byte == 0x81:  # 64-bit length (Big-Endian for strings)
+        return struct.unpack(">Q", data[pos+1:pos+9])[0], 9
     else:
         return 0, 1  # Default case (unexpected data)
 
