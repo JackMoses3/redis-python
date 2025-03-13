@@ -251,14 +251,17 @@ def connect(connection: socket.socket) -> None:
                         connection.sendall(fullresync_response.encode())
                         
                         empty_rdb_hex = bytes.fromhex(
-                            "5245444953303036"  # "REDIS0006" (correct version header)
-                            "fa0d72656469732d7665727304372e302e30"  # redis-ver:7.0.0
-                            "fa0b6372656174652d7478c03dce1f2d59"  # create-tx (timestamp)
-                            "fa0c617578696c696172790403b6a962f000ff"  # auxiliary data
+                            "524544495330303131"  # "REDIS0011" - version 11
+                            "fa0972656469732d76657205372e322e30"  # redis-ver:7.2.0
+                            "fa0a72656469732d62697473c040"  # redis-bits:64
+                            "fa056374696d65c26d08bc65"  # ctime: timestamp
+                            "fa08757365642d6d656dc2b0c41000"  # used-mem:1000000
+                            "fa08616f662d62617365c000ff"  # aof-base: 0xff (end)
+                            "f06e3bfec0ff5aa2"  # Ending signature
                         )
                         empty_rdb_response = f"${len(empty_rdb_hex)}\r\n".encode() + empty_rdb_hex
                         connection.sendall(empty_rdb_response)
-                        print("Sent empty RDB file to replica")
+                        print("Sent corrected empty RDB file to replica")
                     else:
                         response = "-ERR unknown command\r\n"
 
