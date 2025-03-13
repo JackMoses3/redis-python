@@ -14,6 +14,7 @@ def load_rdb_file():
     """Loads a single key from the RDB file if it exists."""
     rdb_path = os.path.join(config["dir"], config["dbfilename"])
     if not os.path.exists(rdb_path):
+        print("No RDB file found, treating database as empty.")
         return  # No RDB file, treat as empty database
 
     with open(rdb_path, "rb") as f:
@@ -22,8 +23,11 @@ def load_rdb_file():
     # A minimal RDB parser to extract a single key
     try:
         key = extract_key_from_rdb(data)
-        if key and key not in store:
+        if key:
+            print(f"Extracted key from RDB: {key}")
             store[key] = (None, None)  # Store key with no value or expiry
+        else:
+            print("No valid key found in RDB file.")
     except Exception as e:
         print(f"Failed to load RDB file: {e}")
 
@@ -34,7 +38,8 @@ def extract_key_from_rdb(data):
         key_end = data.find(b"\xFF", key_start)
         key = data[key_start:key_end].decode("utf-8")
         return key
-    except Exception:
+    except Exception as e:
+        print(f"Error extracting key from RDB: {e}")
         return None
 
 def parse_args():
@@ -126,6 +131,7 @@ def connect(connection: socket.socket) -> None:
                             response = "$-1\r\n"  # Null response for unknown parameters
                     elif cmd == "KEYS" and len(args) == 2 and args[1] == "*":
                         keys = list(store.keys())
+                        print(f"Stored keys: {keys}")  # Debugging log to check stored keys
                         response = f"*{len(keys)}\r\n" + "".join(f"${len(k)}\r\n{k}\r\n" for k in keys)
                     else:
                         response = "-ERR unknown command\r\n"
