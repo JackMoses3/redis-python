@@ -246,6 +246,8 @@ def connect(connection: socket.socket) -> None:
                         response = f"*{len(valid_keys)}\r\n" + "".join(f"${len(k)}\r\n{k}\r\n" for k in valid_keys)
                     elif cmd == "REPLCONF" and len(args) >= 2:
                         response = "+OK\r\n"
+                    elif cmd == "PSYNC" and len(args) == 3 and args[1] == "?" and args[2] == "-1":
+                        response = f"+FULLRESYNC 8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb 0\r\n"
                     else:
                         response = "-ERR unknown command\r\n"
 
