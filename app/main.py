@@ -271,7 +271,7 @@ def main() -> None:
             print("Sent PING to master")
             
             # Send REPLCONF listening-port <PORT>
-            listening_port_command = f"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${{len(str(config['port']))}}\r\n{config['port']}\r\n".encode()
+            listening_port_command = f"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${len(str(config['port']))}\r\n{config['port']}\r\n".encode()
             replica_socket.sendall(listening_port_command)
             print(f"Sent REPLCONF listening-port {config['port']} to master")
             
