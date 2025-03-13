@@ -199,7 +199,7 @@ def connect(connection: socket.socket) -> None:
                             f"master_repl_offset:{master_repl_offset}\r\n"
                         )
                         info_bytes = info_response.encode("utf-8")
-                        response = f"${len(info_bytes)}\r\n{info_response}"
+                        response = f"${len(info_response)}\r\n{info_response}"
                     elif cmd == "SET" and len(args) > 2:
                         key, value = args[1], args[2]
                         expiry = None
