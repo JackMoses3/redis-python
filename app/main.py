@@ -260,6 +260,17 @@ def connect(connection: socket.socket) -> None:
 def main() -> None:
     parse_args()  # Parse CLI arguments
     load_rdb_file()  # Load RDB file on startup
+    if "replicaof" in config:
+        master_host, master_port = config["replicaof"]
+        master_port = int(master_port)
+        try:
+            replica_socket = socket.create_connection((master_host, master_port))
+            print(f"Connected to master at {master_host}:{master_port}")
+            ping_command = b"*1\r\n$4\r\nPING\r\n"
+            replica_socket.sendall(ping_command)
+            print("Sent PING to master")
+        except Exception as e:
+            print(f"Failed to connect to master: {e}")
     server_socket = socket.create_server(("localhost", config["port"]), reuse_port=True)
     print(f"Server started on port {config['port']}")  # Debugging log
     while True:
