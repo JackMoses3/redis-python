@@ -191,13 +191,15 @@ def connect(connection: socket.socket) -> None:
                     elif cmd == "GET" and len(args) > 1:
                         key = args[1]
                         current_time = int(time.time() * 1000)
+                        
                         if key in store:
                             value, expiry = store[key]
                             print(f"Checking expiry for key {key}: expiry={expiry}, current_time={current_time}")
-                            if expiry and current_time > expiry:
+                            
+                            if expiry is not None and current_time > expiry:
                                 print(f"Key {key} has expired. Removing from store.")
                                 del store[key]
-                                response = "$-1\r\n"  # Ensure proper null bulk string response
+                                response = "$-1\r\n"  # Null bulk string for expired keys
                             else:
                                 response = f"${len(value)}\r\n{value}\r\n"  # Return bulk string
                         else:
