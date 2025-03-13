@@ -227,7 +227,6 @@ def connect(connection: socket.socket) -> None:
                     if response:
                         print(f"responding with - {response.strip()}")
                         connection.sendall(response.encode())
-
                     buffer = ""  # Clear buffer after processing a full command
 
             except Exception as e:
