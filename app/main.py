@@ -10,6 +10,33 @@ config = {
     "dbfilename": "dump.rdb"
 }
 
+def load_rdb_file():
+    """Loads a single key from the RDB file if it exists."""
+    rdb_path = os.path.join(config["dir"], config["dbfilename"])
+    if not os.path.exists(rdb_path):
+        return  # No RDB file, treat as empty database
+
+    with open(rdb_path, "rb") as f:
+        data = f.read()
+
+    # A minimal RDB parser to extract a single key
+    try:
+        key = extract_key_from_rdb(data)
+        if key and key not in store:
+            store[key] = (None, None)  # Store key with no value or expiry
+    except Exception as e:
+        print(f"Failed to load RDB file: {e}")
+
+def extract_key_from_rdb(data):
+    """Parses RDB binary format to extract a single key."""
+    try:
+        key_start = data.find(b"\xFE") + 2  # Example: Looking for Redis key marker
+        key_end = data.find(b"\xFF", key_start)
+        key = data[key_start:key_end].decode("utf-8")
+        return key
+    except Exception:
+        return None
+
 def parse_args():
     """Parses command-line arguments for --dir and --dbfilename."""
     args = sys.argv[1:]
@@ -38,33 +65,6 @@ def parse_resp(command: str) -> list[str]:
             i += 1  # Skip malformed input
 
     return args
-
-def load_rdb_file():
-    """Loads a single key from the RDB file if it exists."""
-    rdb_path = os.path.join(config["dir"], config["dbfilename"])
-    if not os.path.exists(rdb_path):
-        return  # No RDB file, treat as empty database
-
-    with open(rdb_path, "rb") as f:
-        data = f.read()
-
-    # A minimal RDB parser to extract a single key
-    try:
-        key = extract_key_from_rdb(data)
-        if key and key not in store:
-            store[key] = (None, None)  # Store key with no value or expiry
-    except Exception as e:
-        print(f"Failed to load RDB file: {e}")
-
-def extract_key_from_rdb(data):
-    """Parses RDB binary format to extract a single key."""
-    try:
-        key_start = data.find(b"\xFE") + 2  # Example: Looking for Redis key marker
-        key_end = data.find(b"\xFF", key_start)
-        key = data[key_start:key_end].decode("utf-8")
-        return key
-    except Exception:
-        return None
 
 def connect(connection: socket.socket) -> None:
     global store, config
@@ -139,7 +139,7 @@ def connect(connection: socket.socket) -> None:
 
 def main() -> None:
     parse_args()  # Parse CLI arguments
-    load_rdb_file()  # Load data from RDB file
+    load_rdb_file()  # Load RDB file on startup
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
     while True:
         connection: socket.socket
