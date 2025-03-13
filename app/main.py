@@ -46,10 +46,10 @@ def load_rdb_file():
                     print("Error: Not enough data for expiry time.")
                     break
 
-                if expiry_size == 8:
-                    expiry_value = struct.unpack("<Q", data[pos:pos+8])[0] // 1000  # Little-endian microseconds
-                else:
-                    expiry_value = struct.unpack("<I", data[pos:pos+4])[0] * 1000  # Little-endian seconds
+                if expiry_size == 8:  # Millisecond precision expiry
+                    expiry_value = struct.unpack("<Q", data[pos:pos+8])[0]  # Little-endian millis
+                else:  # Second precision expiry, convert to millis
+                    expiry_value = struct.unpack("<I", data[pos:pos+4])[0] * 1000  # Little-endian seconds to millis
                 pos += expiry_size
                 expiry = expiry_value
                 continue
@@ -196,8 +196,7 @@ def connect(connection: socket.socket) -> None:
                         if key in store:
                             value, expiry = store[key]
                             print(f"Checking expiry for key {key}: expiry={expiry}, current_time={current_time}")
-                            
-                            if expiry is not None and isinstance(expiry, int) and current_time >= expiry:
+                            if expiry is not None and current_time >= expiry:
                                 print(f"Key {key} has expired. Removing from store.")
                                 del store[key]
                                 response = "$-1\r\n"  # Null bulk string for expired keys
