@@ -68,7 +68,6 @@ def load_rdb_file():
                     print(f"Extracted key-value from RDB: {key} -> {value}")
                     store[key] = (value, None)  # Store value without expiry
                     found_key = True
-                    return  # Return after storing the first valid key
 
         if not found_key:
             print("No valid key-value found in RDB file.")
