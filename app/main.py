@@ -247,7 +247,17 @@ def connect(connection: socket.socket) -> None:
                     elif cmd == "REPLCONF" and len(args) >= 2:
                         response = "+OK\r\n"
                     elif cmd == "PSYNC" and len(args) == 3 and args[1] == "?" and args[2] == "-1":
-                        response = f"+FULLRESYNC 8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb 0\r\n"
+                        fullresync_response = f"+FULLRESYNC 8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb 0\r\n"
+                        connection.sendall(fullresync_response.encode())
+                        
+                        empty_rdb_hex = bytes.fromhex(
+                            "524544495330303136fa0d72656469732d7665727304372e302e30"
+                            "fa0b6372656174652d7478c03dce1f2d59fa0c617578696c696172"
+                            "790403b6a962f000ff"
+                        )
+                        empty_rdb_response = f"${{len(empty_rdb_hex)}}\r\n".encode() + empty_rdb_hex
+                        connection.sendall(empty_rdb_response)
+                        print("Sent empty RDB file to replica")
                     else:
                         response = "-ERR unknown command\r\n"
 
