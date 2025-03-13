@@ -1,9 +1,9 @@
 import socket
 import threading
-import sys
 import time
+import sys
 
-store = {}  # Key-value storage
+store = {}  # Key-value storage with expiry support
 config = {
     "dir": "/tmp",  # Default values
     "dbfilename": "dump.rdb"
@@ -39,7 +39,7 @@ def parse_resp(command: str) -> list[str]:
     return args
 
 def connect(connection: socket.socket) -> None:
-    global store, config  # Use the shared dictionary and config
+    global store, config
     with connection:
         buffer = ""
         while True:
@@ -68,14 +68,21 @@ def connect(connection: socket.socket) -> None:
                         response = f"${len(msg)}\r\n{msg}\r\n"
                     elif cmd == "SET" and len(args) > 2:
                         key, value = args[1], args[2]
-                        store[key] = (value, None)  # Store value with no expiry
+                        expiry = None
+                        if len(args) > 4 and args[3].upper() == "PX":
+                            try:
+                                expiry = int(args[4])
+                                expiry = time.time() * 1000 + expiry  # Convert to absolute expiry time
+                            except ValueError:
+                                response = "-ERR PX value must be an integer\r\n"
+
+                        store[key] = (value, expiry)
                         response = "+OK\r\n"
                     elif cmd == "GET" and len(args) > 1:
                         key = args[1]
                         if key in store:
                             value, expiry = store[key]
-                            current_time = time.time() * 1000  # Get current time in milliseconds
-                            if expiry is not None and current_time > expiry:
+                            if expiry and time.time() * 1000 > expiry:
                                 del store[key]  # Remove expired key
                                 response = "$-1\r\n"
                             else:
