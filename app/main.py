@@ -296,7 +296,7 @@ def connect(connection: socket.socket) -> None:
                         empty_rdb_response = f"${len(empty_rdb_hex)}\r\n".encode() + empty_rdb_hex
                         connection.sendall(empty_rdb_response)
                         print("Sent corrected empty RDB file to replica")
-                        
+                    
                         # Store replica connection for later use
                         replica_sockets.append(connection)
                     else:
