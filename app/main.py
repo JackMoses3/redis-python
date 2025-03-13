@@ -251,9 +251,10 @@ def connect(connection: socket.socket) -> None:
                         connection.sendall(fullresync_response.encode())
                         
                         empty_rdb_hex = bytes.fromhex(
-                            "524544495330303136fa0d72656469732d7665727304372e302e30"
-                            "fa0b6372656174652d7478c03dce1f2d59fa0c617578696c696172"
-                            "790403b6a962f000ff"
+                            "5245444953303036"  # "REDIS0006" (correct version header)
+                            "fa0d72656469732d7665727304372e302e30"  # redis-ver:7.0.0
+                            "fa0b6372656174652d7478c03dce1f2d59"  # create-tx (timestamp)
+                            "fa0c617578696c696172790403b6a962f000ff"  # auxiliary data
                         )
                         empty_rdb_response = f"${len(empty_rdb_hex)}\r\n".encode() + empty_rdb_hex
                         connection.sendall(empty_rdb_response)
