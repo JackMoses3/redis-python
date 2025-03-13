@@ -196,7 +196,7 @@ def connect(connection: socket.socket) -> None:
                             value, expiry = store[key]
                             print(f"Checking expiry for key {key}: expiry={expiry}, current_time={current_time}")
                             
-                            if expiry is not None and current_time >= expiry:
+                            if expiry is not None and isinstance(expiry, int) and current_time >= expiry:
                                 print(f"Key {key} has expired. Removing from store.")
                                 del store[key]
                                 response = "$-1\r\n"  # Null bulk string for expired keys
