@@ -5,6 +5,9 @@ import sys
 import os
 import struct
 
+replication_offset = 0
+replica_sockets = []
+
 store = {}  # Key-value storage with expiry support
 replica_connection = None  # Replication connection for propagating write commands
 config = {
@@ -214,15 +217,17 @@ def connect(connection: socket.socket) -> None:
 
                         store[key] = (value, expiry)
                         response = "+OK\r\n"
-                        # Propagate SET command to replica if connected
-                        if replica_connection:
+                        # Propagate SET command to all replicas
+                        command_to_replicate = f"*{len(args)}\r\n" + "".join(f"${len(arg)}\r\n{arg}\r\n" for arg in args)
+                        for replica in replica_sockets:
                             try:
-                                command_to_replicate = f"*{len(args)}\r\n" + "".join(f"${len(arg)}\r\n{arg}\r\n" for arg in args)
-                                print(f"Propagating to replica: {command_to_replicate.strip()}")
-                                replica_connection.sendall(command_to_replicate.encode())
+                                replica.sendall(command_to_replicate.encode())
                             except Exception as e:
-                                print(f"Error propagating SET to replica: {e}")
-                                replica_connection = None  # Reset connection on failure
+                                print(f"Error propagating to replica: {e}")
+                                replica_sockets.remove(replica)  # Remove dead connections
+
+                        global replication_offset
+                        replication_offset += len(command_to_replicate)  # Increment replication offset
                     elif cmd == "DEL" and len(args) >= 2:
                         key = args[1]
                         if key in store:
@@ -230,15 +235,17 @@ def connect(connection: socket.socket) -> None:
                             response = ":1\r\n"  # Successful deletion
                         else:
                             response = ":0\r\n"
-                        # Propagate DEL command to replica if connected
-                        if replica_connection:
+
+                        # Propagate DEL command to all replicas
+                        command_to_replicate = f"*{len(args)}\r\n" + "".join(f"${len(arg)}\r\n{arg}\r\n" for arg in args)
+                        for replica in replica_sockets:
                             try:
-                                command_to_replicate = f"*{len(args)}\r\n" + "".join(f"${len(arg)}\r\n{arg}\r\n" for arg in args)
-                                print(f"Propagating to replica: {command_to_replicate.strip()}")
-                                replica_connection.sendall(command_to_replicate.encode())
+                                replica.sendall(command_to_replicate.encode())
                             except Exception as e:
-                                print(f"Error propagating DEL to replica: {e}")
-                                replica_connection = None  # Reset connection on failure
+                                print(f"Error propagating to replica: {e}")
+                                replica_sockets.remove(replica)
+
+                        replication_offset += len(command_to_replicate)
                     elif cmd == "GET" and len(args) > 1:
                         key = args[1]
                         current_time = int(time.time() * 1000)
@@ -274,21 +281,24 @@ def connect(connection: socket.socket) -> None:
                     elif cmd == "REPLCONF" and len(args) >= 2:
                         response = "+OK\r\n"
                     elif cmd == "PSYNC" and len(args) == 3 and args[1] == "?" and args[2] == "-1":
-                        fullresync_response = f"+FULLRESYNC 8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb 0\r\n"
+                        fullresync_response = f"+FULLRESYNC 8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb {replication_offset}\r\n"
                         connection.sendall(fullresync_response.encode())
                         
                         empty_rdb_hex = bytes.fromhex(
                             "524544495330303131"  # "REDIS0011" - version 11
-                            "fa0972656469732d76657205372e322e30"  # redis-ver:7.2.0
-                            "fa0a72656469732d62697473c040"  # redis-bits:64
-                            "fa056374696d65c26d08bc65"  # ctime: timestamp
-                            "fa08757365642d6d656dc2b0c41000"  # used-mem:1000000
-                            "fa08616f662d62617365c000ff"  # aof-base: 0xff (end)
-                            "f06e3bfec0ff5aa2"  # Ending signature
+                            "fa0972656469732d76657205372e322e30"
+                            "fa0a72656469732d62697473c040"
+                            "fa056374696d65c26d08bc65"
+                            "fa08757365642d6d656dc2b0c41000"
+                            "fa08616f662d62617365c000ff"
+                            "f06e3bfec0ff5aa2"
                         )
                         empty_rdb_response = f"${len(empty_rdb_hex)}\r\n".encode() + empty_rdb_hex
                         connection.sendall(empty_rdb_response)
                         print("Sent corrected empty RDB file to replica")
+                        
+                        # Store replica connection for later use
+                        replica_sockets.append(connection)
                     else:
                         response = "-ERR unknown command\r\n"
 
