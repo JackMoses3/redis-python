@@ -50,6 +50,11 @@ def load_rdb_file():
                 key = data[pos:pos+key_length].decode("utf-8", errors="ignore").strip()
                 pos += key_length
 
+                # Ensure key is valid before proceeding to value extraction
+                if not key or not key.isprintable():
+                    print(f"Skipping invalid key: {key}")
+                    continue
+
                 # Extract value length and value
                 value_length, value_length_size = parse_length_encoding(data, pos)
                 pos += value_length_size
@@ -59,7 +64,7 @@ def load_rdb_file():
                 value = data[pos:pos+value_length].decode("utf-8", errors="ignore").strip()
                 pos += value_length
 
-                if key and value and key.isprintable():
+                if value and value.isprintable():
                     print(f"Extracted key-value from RDB: {key} -> {value}")
                     store[key] = (value, None)  # Store value without expiry
                     found_key = True
