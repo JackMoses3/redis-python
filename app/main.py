@@ -174,22 +174,25 @@ def receive_commands_from_master(replica_socket):
                 break
 
             buffer += data
+            # Process all complete RESP commands in the buffer
             while "\r\n" in buffer:
                 args = parse_resp(buffer)
                 if not args:
-                    buffer = ""
-                    continue
+                    break  # Incomplete command, wait for more data
 
                 cmd = args[0].upper()
 
                 if cmd == "SET" and len(args) > 2:
                     key, value = args[1], args[2]
                     store[key] = (value, None)  # No expiry support in replication mode
+                    print(f"Replicated SET command: {key} -> {value}")
                 elif cmd == "DEL" and len(args) > 1:
                     key = args[1]
                     store.pop(key, None)
+                    print(f"Replicated DEL command: {key}")
 
-                buffer = ""  # Clear processed data
+                # Remove the processed command from the buffer
+                buffer = buffer[len("\r\n".join(args)) + 2:]  # Ensure the buffer is correctly trimmed
         except Exception as e:
             print(f"Error receiving commands from master: {e}")
             break
