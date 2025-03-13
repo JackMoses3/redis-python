@@ -1,6 +1,7 @@
 import socket
 import threading
 import sys
+import time
 
 store = {}  # Key-value storage
 config = {
@@ -67,13 +68,18 @@ def connect(connection: socket.socket) -> None:
                         response = f"${len(msg)}\r\n{msg}\r\n"
                     elif cmd == "SET" and len(args) > 2:
                         key, value = args[1], args[2]
-                        store[key] = value
+                        store[key] = (value, None)  # Store value with no expiry
                         response = "+OK\r\n"
                     elif cmd == "GET" and len(args) > 1:
                         key = args[1]
                         if key in store:
-                            value = store[key]
-                            response = f"${len(value)}\r\n{value}\r\n"
+                            value, expiry = store[key]
+                            current_time = time.time() * 1000  # Get current time in milliseconds
+                            if expiry is not None and current_time > expiry:
+                                del store[key]  # Remove expired key
+                                response = "$-1\r\n"
+                            else:
+                                response = f"${len(value)}\r\n{value}\r\n"
                         else:
                             response = "$-1\r\n"  # Null bulk string for missing keys
                     elif cmd == "CONFIG" and len(args) == 3 and args[1].upper() == "GET":
