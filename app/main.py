@@ -132,7 +132,6 @@ def parse_resp(command: str) -> list[str]:
             i += 2
         else:
             i += 1  # Skip malformed input
-
     return args
 
 def connect(connection: socket.socket) -> None:
