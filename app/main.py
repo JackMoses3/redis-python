@@ -32,10 +32,10 @@ def load_rdb_file():
         print(f"Failed to load RDB file: {e}")
 
 def extract_key_from_rdb(data):
-    """Parses an RDB file and extracts the first key."""
+    """Parses an RDB file and extracts the first valid key."""
     try:
-        pos = 9  # Skip the RDB header (first 9 bytes)
-
+        pos = 9  # Skip the RDB header (first 9 bytes: 'REDIS' + version)
+        
         while pos < len(data):
             byte = data[pos]
             pos += 1
@@ -48,20 +48,23 @@ def extract_key_from_rdb(data):
                 pos += 4 if byte == 0xFD else 8
                 continue
 
-            if byte in {0x00, 0x01, 0x02, 0x03}:  # Object type (string, list, hash, set, etc.)
-                key_length_byte = data[pos]
+            if 0x00 <= byte <= 0x06:  # Object type (string, list, hash, etc.)
+                if pos >= len(data):  
+                    break  # Prevent out-of-bounds errors
+                
+                key_length = data[pos]
                 pos += 1  # Move to key length section
 
-                # Determine key length
-                if key_length_byte < 0x80:  # 7-bit encoded string
-                    key_length = key_length_byte
-                elif key_length_byte == 0x81:  # 8-bit length
+                # Determine key length encoding
+                if key_length < 0x80:  # 7-bit encoded string
+                    pass
+                elif key_length == 0x81:  # 8-bit length
                     key_length = data[pos]
                     pos += 1
-                elif key_length_byte == 0x82:  # 16-bit length
+                elif key_length == 0x82:  # 16-bit length
                     key_length = struct.unpack(">H", data[pos:pos+2])[0]
                     pos += 2
-                elif key_length_byte == 0x83:  # 32-bit length
+                elif key_length == 0x83:  # 32-bit length
                     key_length = struct.unpack(">I", data[pos:pos+4])[0]
                     pos += 4
                 else:
@@ -69,10 +72,12 @@ def extract_key_from_rdb(data):
 
                 # Extract the key
                 if pos + key_length <= len(data):
-                    key = data[pos:pos+key_length].decode("utf-8", errors="ignore")
+                    key = data[pos:pos+key_length].decode("utf-8", errors="ignore").strip()
                     pos += key_length
                     if key.isprintable():
                         return key  # Ensure extracted key is valid
+                    else:
+                        print(f"Invalid key extracted: {key}")
 
     except Exception as e:
         print(f"Error extracting key from RDB: {e}")
