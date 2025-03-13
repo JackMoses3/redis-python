@@ -191,7 +191,7 @@ def connect(connection: socket.socket) -> None:
                     elif cmd == "INFO" and len(args) == 2 and args[1].upper() == "REPLICATION":
                         role = "slave" if "replicaof" in config else "master"
                         info_response = f"role:{role}\r\n"
-                        response = f"${len(info_response) + 2}\r\n{info_response}\r\n"
+                        response = f"${len(info_response)}\r\n{info_response}"
                     elif cmd == "SET" and len(args) > 2:
                         key, value = args[1], args[2]
                         expiry = None
