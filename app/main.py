@@ -30,9 +30,7 @@ def load_rdb_file():
 
             if byte == 0xFA:  # Auxiliary fields (skip them)
                 aux_key_length, key_size = parse_length_encoding(data, pos)
-                pos += key_size
-                aux_value_length, value_size = parse_length_encoding(data, pos)
-                pos += value_size + aux_key_length + aux_value_length
+                pos += key_size + aux_key_length + parse_length_encoding(data, pos + key_size)[1]
                 continue
 
             if byte == 0xFE:  # Database selector
@@ -78,7 +76,7 @@ def load_rdb_file():
                 value = data[pos:pos+value_length].decode("utf-8", errors="ignore").strip()
                 pos += value_length
 
-                store[key] = (value, None)
+                store[key] = (value, None)  # No expiry for now
                 print(f"Loaded key-value pair: {key} -> {value}")
                 continue
 
