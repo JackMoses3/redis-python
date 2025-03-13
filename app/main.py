@@ -40,15 +40,16 @@ def load_rdb_file():
                 print(f"Selecting database {db_number}")
                 continue
 
-            if byte in [0xFD, 0xFC]:  # Expiry time
+            if byte in [0xFD, 0xFC]:  # Expiry time (Little Endian Fix)
                 expiry_size = 8 if byte == 0xFC else 4
                 if pos + expiry_size > len(data):
                     print("Error: Not enough data for expiry time.")
                     break
+
                 if expiry_size == 8:
-                    expiry_value = struct.unpack(">Q", data[pos:pos+8])[0] // 1000  # Convert microseconds to milliseconds
+                    expiry_value = struct.unpack("<Q", data[pos:pos+8])[0] // 1000  # Little-endian microseconds
                 else:
-                    expiry_value = struct.unpack(">I", data[pos:pos+4])[0] * 1000  # Convert seconds to milliseconds
+                    expiry_value = struct.unpack("<I", data[pos:pos+4])[0] * 1000  # Little-endian seconds
                 pos += expiry_size
                 expiry = expiry_value
                 continue
