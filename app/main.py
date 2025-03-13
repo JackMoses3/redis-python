@@ -269,11 +269,21 @@ def main() -> None:
             ping_command = b"*1\r\n$4\r\nPING\r\n"
             replica_socket.sendall(ping_command)
             print("Sent PING to master")
+            pong_response = replica_socket.recv(1024)
+            if not pong_response.startswith(b"+PONG"):
+                print("Did not receive PONG from master")
+                return
+            print("Received PONG from master")
             
             # Send REPLCONF listening-port <PORT>
             listening_port_command = f"*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${len(str(config['port']))}\r\n{config['port']}\r\n".encode()
             replica_socket.sendall(listening_port_command)
             print(f"Sent REPLCONF listening-port {config['port']} to master")
+            ok_response = replica_socket.recv(1024)
+            if not ok_response.startswith(b"+OK"):
+                print("Did not receive OK for REPLCONF listening-port")
+                return
+            print("Received OK for REPLCONF listening-port")
             
             # Send REPLCONF capa psync2
             capa_command = b"*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"
