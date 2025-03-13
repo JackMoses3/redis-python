@@ -4,16 +4,17 @@ import threading
 def parse_resp(command: str) -> list[str]:
     """Parses a RESP-encoded command string into a list of arguments."""
     parts = command.strip().split("\r\n")
-    if len(parts) < 4 or not parts[0].startswith("*"):
+    if not parts or not parts[0].startswith("*"):
         return []
-    
+
     num_args = int(parts[0][1:])
     args = []
     i = 1
     while i < len(parts) and len(args) < num_args:
         if parts[i].startswith("$"):
-            arg_len = int(parts[i][1:]) # lrngth of the string, this is used to tell how long the response is
-            args.append(parts[i + 1])  # The actual argument
+            arg_len = int(parts[i][1:])
+            if i + 1 < len(parts):
+                args.append(parts[i + 1])
             i += 2
         else:
             i += 1  # Skip malformed input
@@ -33,10 +34,11 @@ def connect(connection: socket.socket) -> None:
 
                 while "\r\n" in buffer:
                     print(f"received - {buffer.strip()}")
-                    
+
                     args = parse_resp(buffer)
                     if not args:
-                        break  # Ignore invalid commands
+                        buffer = ""
+                        continue  # Ignore invalid commands
 
                     cmd = args[0].upper()  # Case-insensitive command handling
                     response: str = ""
@@ -46,6 +48,8 @@ def connect(connection: socket.socket) -> None:
                     elif cmd == "ECHO" and len(args) > 1:
                         msg = args[1]
                         response = f"${len(msg)}\r\n{msg}\r\n"
+                    else:
+                        response = "-ERR unknown command\r\n"
 
                     if response:
                         print(f"responding with - {response.strip()}")
