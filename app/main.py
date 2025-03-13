@@ -194,10 +194,12 @@ def connect(connection: socket.socket) -> None:
                         if key in store:
                             value, expiry = store[key]
                             print(f"Checking expiry for key {key}: expiry={expiry}, current_time={current_time}")
-                            if expiry and current_time > expiry:
-                                print(f"Key {key} has expired. Removing from store.")
-                                del store[key]
-                                response = "$-1\r\n"
+                            if expiry:
+                                expiry = expiry // 1000  # Convert microseconds to milliseconds
+                                if current_time > expiry:
+                                    print(f"Key {key} has expired. Removing from store.")
+                                    del store[key]
+                                    response = "$-1\r\n"
                             else:
                                 response = f"${len(value)}\r\n{value}\r\n"
                         else:
