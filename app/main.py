@@ -124,6 +124,9 @@ def connect(connection: socket.socket) -> None:
                             response = f"*2\r\n${len(param)}\r\n{param}\r\n${len(value)}\r\n{value}\r\n"
                         else:
                             response = "$-1\r\n"  # Null response for unknown parameters
+                    elif cmd == "KEYS" and len(args) == 2 and args[1] == "*":
+                        keys = list(store.keys())
+                        response = f"*{len(keys)}\r\n" + "".join(f"${len(k)}\r\n{k}\r\n" for k in keys)
                     else:
                         response = "-ERR unknown command\r\n"
 
