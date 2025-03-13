@@ -3,6 +3,7 @@ import threading
 import time
 import sys
 import os
+import struct
 
 store = {}  # Key-value storage with expiry support
 config = {
@@ -20,7 +21,6 @@ def load_rdb_file():
     with open(rdb_path, "rb") as f:
         data = f.read()
 
-    # A minimal RDB parser to extract a single key
     try:
         key = extract_key_from_rdb(data)
         if key:
@@ -32,12 +32,46 @@ def load_rdb_file():
         print(f"Failed to load RDB file: {e}")
 
 def extract_key_from_rdb(data):
-    """Parses RDB binary format to extract a single key."""
+    """Parses an RDB file and extracts the first key."""
     try:
-        key_start = data.find(b"\xFE") + 2  # Example: Looking for Redis key marker
-        key_end = data.find(b"\xFF", key_start)
-        key = data[key_start:key_end].decode("utf-8")
-        return key
+        pos = 9  # Skip the RDB header (first 9 bytes)
+        
+        while pos < len(data):
+            byte = data[pos]
+            pos += 1
+
+            if byte == 0xFE:  # FE marks a database selector
+                db_number = data[pos]
+                pos += 1
+                continue
+
+            if byte == 0xFD:  # FD marks an expiry time (seconds)
+                pos += 4  # Skip 4-byte expiry time
+                continue
+
+            if byte == 0xFC:  # FC marks an expiry time (milliseconds)
+                pos += 8  # Skip 8-byte expiry time
+                continue
+
+            if 0x00 <= byte <= 0xFA:  # This is an encoded object type
+                key_length = byte
+            elif byte == 0xFB:  # FB marks an 8-bit length
+                key_length = data[pos]
+                pos += 1
+            elif byte == 0xFC:  # FC marks a 16-bit length
+                key_length = struct.unpack(">H", data[pos:pos+2])[0]
+                pos += 2
+            elif byte == 0xFD:  # FD marks a 32-bit length
+                key_length = struct.unpack(">I", data[pos:pos+4])[0]
+                pos += 4
+            else:
+                continue  # Skip unknown byte
+
+            # Extract the key
+            key = data[pos:pos+key_length].decode("utf-8", errors="ignore")
+            pos += key_length
+            return key
+
     except Exception as e:
         print(f"Error extracting key from RDB: {e}")
         return None
