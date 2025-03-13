@@ -40,37 +40,23 @@ def extract_key_from_rdb(data):
             byte = data[pos]
             pos += 1
 
-            if byte == 0xFE:  # Database selector (start of key-value pairs)
+            if byte == 0xFE:  # Database selector (marks the start of key-value pairs)
                 pos += 1  # Skip database number
                 continue
 
-            if byte in {0xFD, 0xFC}:  # Expiry time (seconds or milliseconds)
+            if byte in {0xFD, 0xFC}:  # Expiry times (seconds or milliseconds)
                 pos += 4 if byte == 0xFD else 8
                 continue
 
-            if 0x00 <= byte <= 0x06:  # Object type (string, list, hash, etc.)
+            if 0x00 <= byte <= 0x06:  # Object type byte (marks the start of a key-value pair)
                 if pos >= len(data):  
                     break  # Prevent out-of-bounds errors
-                
-                key_length = data[pos]
-                pos += 1  # Move to key length section
 
-                # Determine key length encoding
-                if key_length < 0x80:  # 7-bit encoded string
-                    pass
-                elif key_length == 0x81:  # 8-bit length
-                    key_length = data[pos]
-                    pos += 1
-                elif key_length == 0x82:  # 16-bit length
-                    key_length = struct.unpack(">H", data[pos:pos+2])[0]
-                    pos += 2
-                elif key_length == 0x83:  # 32-bit length
-                    key_length = struct.unpack(">I", data[pos:pos+4])[0]
-                    pos += 4
-                else:
-                    continue  # Unknown encoding, skip
+                # Read key length encoding
+                key_length, key_length_size = parse_length_encoding(data, pos)
+                pos += key_length_size
 
-                # Extract the key
+                # Extract key
                 if pos + key_length <= len(data):
                     key = data[pos:pos+key_length].decode("utf-8", errors="ignore").strip()
                     pos += key_length
@@ -82,6 +68,21 @@ def extract_key_from_rdb(data):
     except Exception as e:
         print(f"Error extracting key from RDB: {e}")
         return None
+
+def parse_length_encoding(data, pos):
+    """Parses the length encoding in an RDB file."""
+    first_byte = data[pos]
+
+    if first_byte < 0x80:  # 7-bit integer
+        return first_byte, 1
+    elif first_byte == 0x81:  # 8-bit length
+        return data[pos + 1], 2
+    elif first_byte == 0x82:  # 16-bit length
+        return struct.unpack(">H", data[pos+1:pos+3])[0], 3
+    elif first_byte == 0x83:  # 32-bit length
+        return struct.unpack(">I", data[pos+1:pos+5])[0], 5
+    else:
+        return 0, 1  # Default case (unexpected data)
 
 def parse_args():
     """Parses command-line arguments for --dir and --dbfilename."""
