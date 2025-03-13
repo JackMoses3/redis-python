@@ -244,6 +244,8 @@ def connect(connection: socket.socket) -> None:
                                 valid_keys.append(k)
                         print(f"Stored keys (non-expired): {valid_keys}")  # Debugging log
                         response = f"*{len(valid_keys)}\r\n" + "".join(f"${len(k)}\r\n{k}\r\n" for k in valid_keys)
+                    elif cmd == "REPLCONF" and len(args) >= 2:
+                        response = "+OK\r\n"
                     else:
                         response = "-ERR unknown command\r\n"
 
