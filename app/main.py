@@ -289,6 +289,15 @@ def main() -> None:
             capa_command = b"*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"
             replica_socket.sendall(capa_command)
             print("Sent REPLCONF capa psync2 to master")
+            ok_response = replica_socket.recv(1024)
+            if not ok_response.startswith(b"+OK"):
+                print("Did not receive OK for REPLCONF capa psync2")
+                return
+            print("Received OK for REPLCONF capa psync2")
+            # Send PSYNC command as RESP array
+            psync_command = b"*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n"
+            replica_socket.sendall(psync_command)
+            print("Sent PSYNC ? -1 to master")
         except Exception as e:
             print(f"Failed to connect to master: {e}")
     server_socket = socket.create_server(("localhost", config["port"]), reuse_port=True)
