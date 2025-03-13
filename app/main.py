@@ -190,8 +190,11 @@ def connect(connection: socket.socket) -> None:
                         response = f"${len(msg)}\r\n{msg}\r\n"
                     elif cmd == "INFO" and len(args) == 2 and args[1].upper() == "REPLICATION":
                         role = "slave" if "replicaof" in config else "master"
-                        info_response = f"role:{role}\r\n"
-                        response = f"${len(info_response) - 2}\r\n{info_response}"  # Ensure correct length without extra newline
+                        master_replid = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"  # Hardcoded replication ID
+                        master_repl_offset = 0  # Initial offset
+
+                        info_response = f"role:{role}\r\nmaster_replid:{master_replid}\r\nmaster_repl_offset:{master_repl_offset}\r\n"
+                        response = f"${len(info_response)}\r\n{info_response}"
                     elif cmd == "SET" and len(args) > 2:
                         key, value = args[1], args[2]
                         expiry = None
