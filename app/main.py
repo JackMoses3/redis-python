@@ -37,6 +37,10 @@ def load_rdb_file():
                 pos += 4 if byte == 0xFD else 8
                 continue
 
+            if byte == 0xFB:  # RESIZEDB opcode - indicates key-value pairs follow
+                pos += 2  # Skip DB size and expiry size
+                continue
+
             if 0x00 <= byte <= 0x06:  # Object type (string, list, etc.)
                 if pos >= len(data):
                     break
