@@ -6,6 +6,7 @@ import os
 import struct
 
 store = {}  # Key-value storage with expiry support
+replica_connection = None  # Replication connection for propagating write commands
 config = {
     "dir": "/tmp",  # Default values
     "dbfilename": "dump.rdb",
@@ -162,6 +163,7 @@ def parse_resp(command: str) -> list[str]:
 
 def connect(connection: socket.socket) -> None:
     global store, config
+    global replica_connection
     with connection:
         buffer = ""
         while True:
@@ -212,6 +214,21 @@ def connect(connection: socket.socket) -> None:
 
                         store[key] = (value, expiry)
                         response = "+OK\r\n"
+                        # Propagate SET command to replica if connected
+                        if replica_connection:
+                            command_to_replicate = f"*{len(args)}\r\n" + "".join(f"${len(arg)}\r\n{arg}\r\n" for arg in args)
+                            replica_connection.sendall(command_to_replicate.encode())
+                    elif cmd == "DEL" and len(args) >= 2:
+                        key = args[1]
+                        if key in store:
+                            del store[key]
+                            response = ":1\r\n"  # Successful deletion
+                        else:
+                            response = ":0\r\n"
+                        # Propagate DEL command to replica if connected
+                        if replica_connection:
+                            command_to_replicate = f"*{len(args)}\r\n" + "".join(f"${len(arg)}\r\n{arg}\r\n" for arg in args)
+                            replica_connection.sendall(command_to_replicate.encode())
                     elif cmd == "GET" and len(args) > 1:
                         key = args[1]
                         current_time = int(time.time() * 1000)
@@ -316,6 +333,7 @@ def main() -> None:
             psync_command = b"*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n"
             replica_socket.sendall(psync_command)
             print("Sent PSYNC ? -1 to master")
+            replica_connection = replica_socket  # Store the replication connection
         except Exception as e:
             print(f"Failed to connect to master: {e}")
     server_socket = socket.create_server(("localhost", config["port"]), reuse_port=True)
