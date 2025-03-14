@@ -192,8 +192,7 @@ def receive_commands_from_master(replica_socket):
                     args = parse_resp(command_str)
  
                     if not args:
-                        buffer = b""  # Reset buffer only if fully processed
-                        continue  # Skip invalid commands
+                        break  # Incomplete command received; wait for more data
  
                     cmd = args[0].upper()
                     print(f"Received command from master: {args}")
