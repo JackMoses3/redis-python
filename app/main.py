@@ -186,29 +186,29 @@ def receive_commands_from_master(replica_socket):
                 continue  # Wait for next batch of data
 
             # Process RESP commands after RDB file transfer
-            while b"\r\n" in buffer:
-                try:
-                    command_end = buffer.index(b"\r\n") + 2  # Find end of first command
-                    command = buffer[:command_end].decode("utf-8")  # Decode only this part
-                    buffer = buffer[command_end:]  # Trim buffer
+            try:
+                command_str = buffer.decode("utf-8")
+            except UnicodeDecodeError:
+                # Incomplete command received; wait for more data
+                continue
 
-                    args = parse_resp(command)  # Parse RESP command
-                    if not args:
-                        continue  # Skip invalid commands
+            args = parse_resp(command_str)
+            # Clear buffer after processing assuming complete command received
+            buffer = b""
 
-                    cmd = args[0].upper()
+            if not args:
+                continue  # Skip invalid commands
 
-                    if cmd == "SET" and len(args) > 2:
-                        key, value = args[1], args[2]
-                        store[key] = (value, None)  # No expiry support in replication mode
-                        print(f"Replicated SET command: {key} -> {value}")
-                    elif cmd == "DEL" and len(args) > 1:
-                        key = args[1]
-                        store.pop(key, None)
-                        print(f"Replicated DEL command: {key}")
-                except Exception as parse_error:
-                    print(f"Error parsing master command: {parse_error}")
-                    break
+            cmd = args[0].upper()
+
+            if cmd == "SET" and len(args) > 2:
+                key, value = args[1], args[2]
+                store[key] = (value, None)  # No expiry support in replication mode
+                print(f"Replicated SET command: {key} -> {value}")
+            elif cmd == "DEL" and len(args) > 1:
+                key = args[1]
+                store.pop(key, None)
+                print(f"Replicated DEL command: {key}")
         except Exception as e:
             print(f"Error receiving commands from master: {e}")
             break
