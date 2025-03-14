@@ -168,15 +168,15 @@ def receive_commands_from_master(replica_socket):
     """Continuously listen for commands from the master and process them."""
     buffer = b""  # Use bytes for buffer to handle binary data
     rdb_received = False
-
+ 
     while True:
         try:
             data = replica_socket.recv(1024)
             if not data:
                 break
-
+ 
             buffer += data
-
+ 
             # Check if we have received the RDB file
             if not rdb_received:
                 if b"REDIS" in buffer:
@@ -184,31 +184,36 @@ def receive_commands_from_master(replica_socket):
                     buffer = b""  # Clear buffer after receiving RDB
                     rdb_received = True
                 continue  # Wait for next batch of data
-
+ 
             # Process RESP commands after RDB file transfer
-            try:
-                command_str = buffer.decode("utf-8")
-            except UnicodeDecodeError:
-                # Incomplete command received; wait for more data
-                continue
-
-            args = parse_resp(command_str)
-            # Clear buffer after processing assuming complete command received
-            buffer = b""
-
-            if not args:
-                continue  # Skip invalid commands
-
-            cmd = args[0].upper()
-
-            if cmd == "SET" and len(args) > 2:
-                key, value = args[1], args[2]
-                store[key] = (value, None)  # No expiry support in replication mode
-                print(f"Replicated SET command: {key} -> {value}")
-            elif cmd == "DEL" and len(args) > 1:
-                key = args[1]
-                store.pop(key, None)
-                print(f"Replicated DEL command: {key}")
+            while b"\r\n" in buffer:
+                try:
+                    command_str = buffer.decode("utf-8", errors="ignore")  # Decode safely
+                    args = parse_resp(command_str)
+ 
+                    if not args:
+                        buffer = b""  # Reset buffer only if fully processed
+                        continue  # Skip invalid commands
+ 
+                    cmd = args[0].upper()
+                    print(f"Received command from master: {args}")
+ 
+                    if cmd == "SET" and len(args) > 2:
+                        key, value = args[1], args[2]
+                        store[key] = (value, None)  # No expiry support in replication mode
+                        print(f"Replicated SET command: {key} -> {value}")
+                    elif cmd == "DEL" and len(args) > 1:
+                        key = args[1]
+                        store.pop(key, None)
+                        print(f"Replicated DEL command: {key}")
+ 
+                    # Remove processed command from buffer
+                    processed_length = len(command_str.encode())
+                    buffer = buffer[processed_length:]
+ 
+                except UnicodeDecodeError:
+                    # Incomplete command received; wait for more data
+                    continue
         except Exception as e:
             print(f"Error receiving commands from master: {e}")
             break
