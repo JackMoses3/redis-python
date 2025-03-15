@@ -202,6 +202,7 @@ def receive_commands_from_master(replica_socket):
                         print(f"Error converting FULLRESYNC offset: {e}")
                         continue
 
+                # Now handle RDB file
                 if buffer.startswith(b"$"):
                     rdb_length_end = buffer.find(b"\r\n")
                     if rdb_length_end != -1:
