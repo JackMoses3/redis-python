@@ -420,5 +420,6 @@ def main() -> None:
         thread: threading.Thread = threading.Thread(target=connect, args=[connection])
         thread.start()
 
+
 if __name__ == "__main__":
     main()
