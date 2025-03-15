@@ -184,7 +184,7 @@ def receive_commands_from_master(replica_socket):
                         # Find the first newline to separate FULLRESYNC line
                         newline_index = buffer.find(b"\r\n")
                         if newline_index == -1:
-                            return  # Wait for more data
+                            continue  # Wait for more data
 
                         fullresync_response = buffer[:newline_index].decode().strip()
                         buffer = buffer[newline_index + 2:]  # Move past FULLRESYNC line
@@ -196,11 +196,11 @@ def receive_commands_from_master(replica_socket):
                             print(f"Received FULLRESYNC: {master_repl_id}, offset {master_repl_offset}")
                         else:
                             print(f"Error parsing FULLRESYNC response: {fullresync_response}")
-                            return
+                            continue  # Skip further processing
 
                     except ValueError as e:
                         print(f"Error converting FULLRESYNC offset: {e}")
-                        return
+                        continue  # Skip further processing
 
                 if buffer.startswith(b"$"):
                     # Extract the RDB file length
@@ -213,7 +213,7 @@ def receive_commands_from_master(replica_socket):
                             rdb_received = True
                         except ValueError:
                             print("Error parsing RDB file length")
-                            return
+                            continue
                     else:
                         continue  # Wait for more data
  
