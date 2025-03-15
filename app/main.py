@@ -168,35 +168,39 @@ def receive_commands_from_master(replica_socket):
     """Continuously listen for commands from the master and process them."""
     buffer = b""  # Use bytes for buffer to handle binary data
     rdb_received = False
- 
+
     while True:
         try:
-            data = replica_socket.recv(1024)
+            data = replica_socket.recv(4096)
             if not data:
                 break
- 
+
             buffer += data
- 
+
             # Check if we have received the RDB file
             if not rdb_received:
                 if b"REDIS" in buffer:
                     print("RDB file transfer detected, skipping processing.")
-                    buffer = b""  # Clear buffer after receiving RDB
-                    rdb_received = True
-                continue  # Wait for next batch of data
+                    rdb_length_end = buffer.find(b"\r\n")  # Find end of bulk string length
+                    if rdb_length_end != -1:
+                        rdb_length = int(buffer[1:rdb_length_end])  # Extract RDB length
+                        buffer = buffer[rdb_length_end + 2 + rdb_length :]  # Skip RDB data
+                        rdb_received = True
+                    else:
+                        continue  # Wait for more data
  
             # Process RESP commands after RDB file transfer
             while b"\r\n" in buffer:
                 try:
                     command_str = buffer.decode("utf-8", errors="ignore")  # Decode safely
                     args = parse_resp(command_str)
- 
+
                     if not args:
                         break  # Incomplete command received; wait for more data
- 
+
                     cmd = args[0].upper()
                     print(f"Received command from master: {args}")
- 
+
                     if cmd == "SET" and len(args) > 2:
                         key, value = args[1], args[2]
                         store[key] = (value, None)  # No expiry support in replication mode
@@ -205,11 +209,11 @@ def receive_commands_from_master(replica_socket):
                         key = args[1]
                         store.pop(key, None)
                         print(f"Replicated DEL command: {key}")
- 
+
                     # Remove processed command from buffer
                     processed_length = len(command_str.encode())
                     buffer = buffer[processed_length:]
- 
+
                 except UnicodeDecodeError:
                     # Incomplete command received; wait for more data
                     continue
