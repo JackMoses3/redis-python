@@ -240,12 +240,13 @@ def receive_commands_from_master(replica_socket):
                     buffer = buffer[len(consumed):]
  
                     pre_offset = replication_offset  # Store the offset before processing current command
+                    processed_bytes = len(consumed)  # Count bytes processed for this command
+                    replication_offset += processed_bytes  # Track bytes processed
                     args = parse_resp(command_str)
                     if not args:
                         continue
 
                     cmd = args[0].upper()
-                    replication_offset += len(consumed)  # Track bytes processed
                     print(f"Received command from master: {args}")
                     # Handle REPLCONF GETACK *
                     if cmd == "REPLCONF" and len(args) == 3 and args[1].upper() == "GETACK" and args[2] == "*":
