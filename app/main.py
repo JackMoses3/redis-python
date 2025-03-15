@@ -221,31 +221,40 @@ def receive_commands_from_master(replica_socket):
             # Process RESP commands after RDB file transfer
             while buffer:
                 try:
-                    # Extract one command at a time from buffer
-                    newline_index = buffer.find(b"\r\n")
-                    if newline_index == -1:
+                    parts = buffer.split(b"\r\n")
+                    if len(parts) < 3:
+                        break  # Incomplete command, wait for more data
+                    try:
+                        num_args = int(parts[0][1:])
+                    except Exception:
+                        newline_index = buffer.find(b"\r\n")
+                        buffer = buffer[newline_index+2:]
+                        continue
+                    expected_lines = 1 + num_args * 2
+                    if len(parts) < expected_lines + 1:
                         break  # Wait for more data
-
-                    command_str = buffer[:newline_index + 2].decode("utf-8", errors="ignore")
-                    buffer = buffer[newline_index + 2:]  # Move past processed command
-
+                    command_lines = parts[:expected_lines]
+                    command_str = "\r\n".join(line.decode("utf-8", errors="ignore") for line in command_lines) + "\r\n"
+                    consumed = b"\r\n".join(parts[:expected_lines]) + b"\r\n"
+                    buffer = buffer[len(consumed):]
+ 
                     args = parse_resp(command_str)
                     if not args:
                         continue
-
+ 
                     cmd = args[0].upper()
                     print(f"Received command from master: {args}")
-
+ 
                     if cmd == "SET" and len(args) > 2:
                         key, value = args[1], args[2]
-                        store[key] = (value, None)  # No expiry support in replication mode
+                        store[key] = (value, None)
                         print(f"Replicated SET command: {key} -> {value}")
-
+ 
                     elif cmd == "DEL" and len(args) > 1:
                         key = args[1]
                         store.pop(key, None)
                         print(f"Replicated DEL command: {key}")
-
+ 
                 except UnicodeDecodeError:
                     continue
         except Exception as e:
@@ -336,6 +345,7 @@ def connect(connection: socket.socket) -> None:
                         replication_offset += len(command_to_replicate)
                     elif cmd == "GET" and len(args) > 1:
                         key = args[1]
+                        print(f"Store contents before GET for key '{key}': {store}")
                         current_time = int(time.time() * 1000)
                         
                         if key in store:
