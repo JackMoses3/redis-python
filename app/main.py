@@ -177,26 +177,46 @@ def receive_commands_from_master(replica_socket):
 
             buffer += data
 
-            # Check if we have received the RDB file
+            # Handle FULLRESYNC response and RDB file transfer
             if not rdb_received:
-                if b"REDIS" in buffer:
-                    print("RDB file transfer detected, skipping processing.")
-                    rdb_length_end = buffer.find(b"\r\n")  # Find end of bulk string length
+                if buffer.startswith(b"+FULLRESYNC"):
+                    # Extract replication ID and offset
+                    fullresync_response, buffer = buffer.split(b"\r\n", 1)
+                    parts = fullresync_response.decode().split()
+                    if len(parts) == 3 and parts[0] == "FULLRESYNC":
+                        master_repl_id = parts[1]
+                        master_repl_offset = int(parts[2])
+                        print(f"Received FULLRESYNC: {master_repl_id}, offset {master_repl_offset}")
+                    else:
+                        print("Error parsing FULLRESYNC response")
+                        return
+
+                if buffer.startswith(b"$"):
+                    # Extract the RDB file length
+                    rdb_length_end = buffer.find(b"\r\n")
                     if rdb_length_end != -1:
-                        rdb_length = int(buffer[1:rdb_length_end])  # Extract RDB length
-                        buffer = buffer[rdb_length_end + 2 + rdb_length :]  # Skip RDB data
-                        rdb_received = True
+                        try:
+                            rdb_length = int(buffer[1:rdb_length_end])
+                            print(f"RDB file detected, length: {rdb_length} bytes. Skipping...")
+                            buffer = buffer[rdb_length_end + 2 + rdb_length :]
+                            rdb_received = True
+                        except ValueError:
+                            print("Error parsing RDB file length")
+                            return
                     else:
                         continue  # Wait for more data
  
+            if not rdb_received:
+                continue  # Wait until RDB is received before processing commands
+
             # Process RESP commands after RDB file transfer
             while b"\r\n" in buffer:
                 try:
-                    command_str = buffer.decode("utf-8", errors="ignore")  # Decode safely
+                    command_str = buffer.decode("utf-8", errors="ignore")
                     args = parse_resp(command_str)
 
                     if not args:
-                        break  # Incomplete command received; wait for more data
+                        break
 
                     cmd = args[0].upper()
                     print(f"Received command from master: {args}")
@@ -205,6 +225,7 @@ def receive_commands_from_master(replica_socket):
                         key, value = args[1], args[2]
                         store[key] = (value, None)  # No expiry support in replication mode
                         print(f"Replicated SET command: {key} -> {value}")
+
                     elif cmd == "DEL" and len(args) > 1:
                         key = args[1]
                         store.pop(key, None)
@@ -215,7 +236,6 @@ def receive_commands_from_master(replica_socket):
                     buffer = buffer[processed_length:]
 
                 except UnicodeDecodeError:
-                    # Incomplete command received; wait for more data
                     continue
         except Exception as e:
             print(f"Error receiving commands from master: {e}")
