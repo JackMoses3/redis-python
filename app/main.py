@@ -166,6 +166,7 @@ def parse_resp(command: str) -> list[str]:
 
 def receive_commands_from_master(replica_socket):
     """Continuously listen for commands from the master and process them."""
+    global replication_offset
     buffer = b""  # Use bytes for buffer to handle binary data
     rdb_received = False
 
@@ -238,17 +239,19 @@ def receive_commands_from_master(replica_socket):
                     consumed = b"\r\n".join(parts[:expected_lines]) + b"\r\n"
                     buffer = buffer[len(consumed):]
  
+                    pre_offset = replication_offset  # Store the offset before processing current command
                     args = parse_resp(command_str)
                     if not args:
                         continue
- 
+
                     cmd = args[0].upper()
+                    replication_offset += len(consumed)  # Track bytes processed
                     print(f"Received command from master: {args}")
                     # Handle REPLCONF GETACK *
                     if cmd == "REPLCONF" and len(args) == 3 and args[1].upper() == "GETACK" and args[2] == "*":
-                        ack_response = "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
+                        ack_response = f"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n${{len(str(pre_offset))}}\r\n{pre_offset}\r\n"
                         replica_socket.sendall(ack_response.encode())
-                        print("Sent REPLCONF ACK 0 response to master")
+                        print(f"Sent REPLCONF ACK {pre_offset} response to master")
                         continue
  
                     if cmd == "SET" and len(args) > 2:
