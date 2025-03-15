@@ -244,6 +244,12 @@ def receive_commands_from_master(replica_socket):
  
                     cmd = args[0].upper()
                     print(f"Received command from master: {args}")
+                    # Handle REPLCONF GETACK *
+                    if cmd == "REPLCONF" and len(args) == 3 and args[1].upper() == "GETACK" and args[2] == "*":
+                        ack_response = "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
+                        replica_socket.sendall(ack_response.encode())
+                        print("Sent REPLCONF ACK 0 response to master")
+                        continue
  
                     if cmd == "SET" and len(args) > 2:
                         key, value = args[1], args[2]
