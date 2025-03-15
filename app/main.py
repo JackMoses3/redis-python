@@ -175,7 +175,6 @@ def receive_commands_from_master(replica_socket):
             data = replica_socket.recv(4096)
             if not data:
                 break
-
             buffer += data
 
             # Handle FULLRESYNC response and RDB file transfer
@@ -216,7 +215,7 @@ def receive_commands_from_master(replica_socket):
                             continue
                     else:
                         continue  # Wait for more data
- 
+
             if not rdb_received:
                 continue  # Wait until RDB is received before processing commands
 
@@ -239,7 +238,7 @@ def receive_commands_from_master(replica_socket):
                     command_str = "\r\n".join(line.decode("utf-8", errors="ignore") for line in command_lines) + "\r\n"
                     consumed = b"\r\n".join(parts[:expected_lines]) + b"\r\n"
                     buffer = buffer[len(consumed):]
- 
+
                     pre_offset = replication_offset  # Store the offset before processing current command
                     processed_bytes = len(consumed)  # Count bytes processed for this command
                     replication_offset += processed_bytes  # Track bytes processed
@@ -255,17 +254,17 @@ def receive_commands_from_master(replica_socket):
                         replica_socket.sendall(ack_response.encode())
                         print(f"Sent REPLCONF ACK {pre_offset} response to master")
                         continue
- 
+
                     if cmd == "SET" and len(args) > 2:
                         key, value = args[1], args[2]
                         store[key] = (value, None)
                         print(f"Replicated SET command: {key} -> {value}")
- 
+
                     elif cmd == "DEL" and len(args) > 1:
                         key = args[1]
                         store.pop(key, None)
                         print(f"Replicated DEL command: {key}")
- 
+
                 except UnicodeDecodeError:
                     continue
         except Exception as e:
