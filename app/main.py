@@ -180,15 +180,26 @@ def receive_commands_from_master(replica_socket):
             # Handle FULLRESYNC response and RDB file transfer
             if not rdb_received:
                 if buffer.startswith(b"+FULLRESYNC"):
-                    # Extract replication ID and offset
-                    fullresync_response, buffer = buffer.split(b"\r\n", 1)
-                    parts = fullresync_response.decode().split()
-                    if len(parts) == 3 and parts[0] == "FULLRESYNC":
-                        master_repl_id = parts[1]
-                        master_repl_offset = int(parts[2])
-                        print(f"Received FULLRESYNC: {master_repl_id}, offset {master_repl_offset}")
-                    else:
-                        print("Error parsing FULLRESYNC response")
+                    try:
+                        # Find the first newline to separate FULLRESYNC line
+                        newline_index = buffer.find(b"\r\n")
+                        if newline_index == -1:
+                            return  # Wait for more data
+
+                        fullresync_response = buffer[:newline_index].decode().strip()
+                        buffer = buffer[newline_index + 2:]  # Move past FULLRESYNC line
+
+                        parts = fullresync_response.split()
+                        if len(parts) == 3 and parts[0] == "FULLRESYNC":
+                            master_repl_id = parts[1]
+                            master_repl_offset = int(parts[2])
+                            print(f"Received FULLRESYNC: {master_repl_id}, offset {master_repl_offset}")
+                        else:
+                            print(f"Error parsing FULLRESYNC response: {fullresync_response}")
+                            return
+
+                    except ValueError as e:
+                        print(f"Error converting FULLRESYNC offset: {e}")
                         return
 
                 if buffer.startswith(b"$"):
