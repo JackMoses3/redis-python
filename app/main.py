@@ -181,7 +181,6 @@ def receive_commands_from_master(replica_socket):
             if not rdb_received:
                 if buffer.startswith(b"+FULLRESYNC"):
                     try:
-                        # Find the first newline to separate FULLRESYNC line
                         newline_index = buffer.find(b"\r\n")
                         if newline_index == -1:
                             continue  # Wait for more data
@@ -196,14 +195,13 @@ def receive_commands_from_master(replica_socket):
                             print(f"Received FULLRESYNC: {master_repl_id}, offset {master_repl_offset}")
                         else:
                             print(f"Error parsing FULLRESYNC response: {fullresync_response}")
-                            continue  # Skip further processing
+                            continue
 
                     except ValueError as e:
                         print(f"Error converting FULLRESYNC offset: {e}")
-                        continue  # Skip further processing
+                        continue
 
                 if buffer.startswith(b"$"):
-                    # Extract the RDB file length
                     rdb_length_end = buffer.find(b"\r\n")
                     if rdb_length_end != -1:
                         try:
@@ -221,13 +219,19 @@ def receive_commands_from_master(replica_socket):
                 continue  # Wait until RDB is received before processing commands
 
             # Process RESP commands after RDB file transfer
-            while b"\r\n" in buffer:
+            while buffer:
                 try:
-                    command_str = buffer.decode("utf-8", errors="ignore")
-                    args = parse_resp(command_str)
+                    # Extract one command at a time from buffer
+                    newline_index = buffer.find(b"\r\n")
+                    if newline_index == -1:
+                        break  # Wait for more data
 
+                    command_str = buffer[:newline_index + 2].decode("utf-8", errors="ignore")
+                    buffer = buffer[newline_index + 2:]  # Move past processed command
+
+                    args = parse_resp(command_str)
                     if not args:
-                        break
+                        continue
 
                     cmd = args[0].upper()
                     print(f"Received command from master: {args}")
@@ -241,10 +245,6 @@ def receive_commands_from_master(replica_socket):
                         key = args[1]
                         store.pop(key, None)
                         print(f"Replicated DEL command: {key}")
-
-                    # Remove processed command from buffer
-                    processed_length = len(command_str.encode())
-                    buffer = buffer[processed_length:]
 
                 except UnicodeDecodeError:
                     continue
