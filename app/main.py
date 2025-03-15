@@ -270,6 +270,7 @@ def receive_commands_from_master(replica_socket):
             print(f"Error receiving commands from master: {e}")
             break
 
+
 def connect(connection: socket.socket) -> None:
     global store, config
     global replica_connection
