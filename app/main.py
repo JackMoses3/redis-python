@@ -249,7 +249,7 @@ def receive_commands_from_master(replica_socket):
                     print(f"Received command from master: {args}")
                     # Handle REPLCONF GETACK *
                     if cmd == "REPLCONF" and len(args) == 3 and args[1].upper() == "GETACK" and args[2] == "*":
-                        ack_response = f"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n${{len(str(pre_offset))}}\r\n{pre_offset}\r\n"
+                        ack_response = f"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n${len(str(pre_offset))}\r\n{pre_offset}\r\n"
                         replica_socket.sendall(ack_response.encode())
                         print(f"Sent REPLCONF ACK {pre_offset} response to master")
                         continue
