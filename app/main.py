@@ -167,8 +167,7 @@ def parse_resp(command: str) -> list[str]:
 
 def receive_commands_from_master(replica_socket):
     """Continuously listen for commands from the master and process them."""
-    global replication_offset
-    global store
+    global replication_offset, store
     buffer = b""  # Use bytes for buffer to handle binary data
     rdb_received = False
 
@@ -180,44 +179,37 @@ def receive_commands_from_master(replica_socket):
             buffer += data
 
             if not rdb_received:
+                # Handle FULLRESYNC and RDB loading
                 if buffer.startswith(b"+FULLRESYNC"):
-                    try:
-                        newline_index = buffer.find(b"\r\n")
-                        if newline_index == -1:
-                            continue  # Wait for more data
- 
-                        fullresync_response = buffer[:newline_index].decode().strip()
-                        buffer = buffer[newline_index + 2:]  # Move past FULLRESYNC line
- 
-                        parts = fullresync_response.split()
-                        if len(parts) == 3 and parts[0] == "FULLRESYNC":
-                            master_repl_id = parts[1]
-                            master_repl_offset = int(parts[2])
-                            print(f"Received FULLRESYNC: {master_repl_id}, offset {master_repl_offset}")
-                        else:
-                            print(f"Error parsing FULLRESYNC response: {fullresync_response}")
-                            continue
- 
-                    except ValueError as e:
-                        print(f"Error converting FULLRESYNC offset: {e}")
+                    newline_index = buffer.find(b"\r\n")
+                    if newline_index == -1:
+                        continue  # Wait for more data
+
+                    fullresync_response = buffer[:newline_index].decode().strip()
+                    buffer = buffer[newline_index + 2:]  # Move past FULLRESYNC line
+
+                    parts = fullresync_response.split()
+                    if len(parts) == 3 and parts[0] == "FULLRESYNC":
+                        master_repl_id = parts[1]
+                        master_repl_offset = int(parts[2])
+                        print(f"Received FULLRESYNC: {master_repl_id}, offset {master_repl_offset}")
+                    else:
+                        print(f"Error parsing FULLRESYNC response: {fullresync_response}")
                         continue
- 
-                # Ensure correct parsing of RDB file
+
                 if buffer.startswith(b"$"):
                     rdb_length_end = buffer.find(b"\r\n")
                     if rdb_length_end != -1:
                         try:
                             rdb_length = int(buffer[1:rdb_length_end])
                             print(f"RDB file detected, length: {rdb_length} bytes. Reading...")
- 
-                            # Ensure we have the full RDB file before proceeding
+
                             if len(buffer) < rdb_length_end + 2 + rdb_length:
                                 continue  # Wait for more data
- 
+
                             buffer = buffer[rdb_length_end + 2 + rdb_length:]  # Discard RDB file
-                            rdb_received = True  # Mark RDB as received
+                            rdb_received = True
                             print("RDB file processing completed.")
- 
                         except ValueError:
                             print("Error parsing RDB file length")
                             continue
@@ -227,35 +219,33 @@ def receive_commands_from_master(replica_socket):
             if not rdb_received:
                 continue  # Wait until RDB is received before processing commands
 
-            # Process RESP commands after RDB file transfer
             while buffer:
                 try:
                     parts = buffer.split(b"\r\n")
                     if len(parts) < 3:
                         break  # Incomplete command, wait for more data
-                    try:
-                        num_args = int(parts[0][1:])
-                    except Exception:
-                        newline_index = buffer.find(b"\r\n")
-                        buffer = buffer[newline_index+2:]
-                        continue
+
+                    num_args = int(parts[0][1:])
                     expected_lines = 1 + num_args * 2
                     if len(parts) < expected_lines + 1:
                         break  # Wait for more data
+
                     command_lines = parts[:expected_lines]
                     command_str = "\r\n".join(line.decode("utf-8", errors="ignore") for line in command_lines) + "\r\n"
                     consumed = b"\r\n".join(parts[:expected_lines]) + b"\r\n"
                     buffer = buffer[len(consumed):]
 
-                    pre_offset = replication_offset  # Store the offset before processing current command
-                    processed_bytes = len(consumed)  # Count bytes processed for this command
-                    replication_offset += processed_bytes  # Track bytes processed
+                    pre_offset = replication_offset
+                    processed_bytes = len(consumed)
+                    replication_offset += processed_bytes
+
                     args = parse_resp(command_str)
                     if not args:
                         continue
 
                     cmd = args[0].upper()
                     print(f"Received command from master: {args}")
+
                     if cmd == "REPLCONF" and len(args) == 3 and args[1].upper() == "ACK":
                         try:
                             ack_offset = int(args[2])
@@ -269,19 +259,22 @@ def receive_commands_from_master(replica_socket):
                         key, value = args[1], args[2]
                         store[key] = (value, None)
                         print(f"Replicated SET command: {key} -> {value}")
-                        print(f"Store contents after replication: {store}")
 
                     elif cmd == "DEL" and len(args) > 1:
                         key = args[1]
                         store.pop(key, None)
                         print(f"Replicated DEL command: {key}")
 
+                    # **Send ACK after processing any write command**
+                    ack_command = f"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n${len(str(replication_offset))}\r\n{replication_offset}\r\n"
+                    replica_socket.sendall(ack_command.encode())
+                    print(f"Sent ACK for offset {replication_offset} to master")
+
                 except UnicodeDecodeError:
                     continue
         except Exception as e:
             print(f"Error receiving commands from master: {e}")
             break
-
 
 def connect(connection: socket.socket) -> None:
     global store, config
@@ -352,7 +345,7 @@ def connect(connection: socket.socket) -> None:
                                 replica.sendall(getack_command.encode())
                             except Exception as e:
                                 print(f"Error sending GETACK request to replica: {e}")
-                                replica_sockets.remove(replica)
+                                replica_sockets.remove(replica)  # Remove failed connections
 
                         global replication_offset
                         replication_offset += len(command_to_replicate)  # Increment replication offset
@@ -440,15 +433,14 @@ def connect(connection: socket.socket) -> None:
                     elif cmd == "WAIT" and len(args) == 3:
                         try:
                             expected_replicas = int(args[1])
-                            timeout = int(args[2]) / 1000  # Convert ms to seconds
+                            timeout = int(args[2]) / 1000  # Convert milliseconds to seconds
                             start_time = time.time()
 
-                            acknowledged_replicas = 0
-                            while time.time() - start_time < timeout:
+                            acknowledged_replicas = sum(1 for ack in replica_ack_offsets.values() if ack >= replication_offset)
+
+                            while acknowledged_replicas < expected_replicas and time.time() - start_time < timeout:
+                                time.sleep(0.01)  # Sleep to avoid busy-waiting
                                 acknowledged_replicas = sum(1 for ack in replica_ack_offsets.values() if ack >= replication_offset)
-                                if acknowledged_replicas >= expected_replicas:
-                                    break
-                                time.sleep(0.01)  # Sleep for 10ms to avoid busy-waiting
 
                             print(f"WAIT completed: expected={expected_replicas}, acknowledged={acknowledged_replicas}, latest_offset={replication_offset}")
                             response = f":{acknowledged_replicas}\r\n"
