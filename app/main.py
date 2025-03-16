@@ -167,6 +167,7 @@ def parse_resp(command: str) -> list[str]:
 def receive_commands_from_master(replica_socket):
     """Continuously listen for commands from the master and process them."""
     global replication_offset
+    global store
     buffer = b""  # Use bytes for buffer to handle binary data
     rdb_received = False
 
@@ -259,6 +260,7 @@ def receive_commands_from_master(replica_socket):
                         key, value = args[1], args[2]
                         store[key] = (value, None)
                         print(f"Replicated SET command: {key} -> {value}")
+                        print(f"Store contents after replication: {store}")
 
                     elif cmd == "DEL" and len(args) > 1:
                         key = args[1]
