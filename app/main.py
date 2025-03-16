@@ -168,7 +168,7 @@ def parse_resp(command: str) -> list[str]:
 def receive_commands_from_master(replica_socket):
     """Continuously listen for commands from the master and process them."""
     global replication_offset, store, replica_ack_offsets
-    buffer = b""  # Use bytes for buffer to handle binary data
+    buffer = b""  
     rdb_received = False
 
     while True:
@@ -179,14 +179,14 @@ def receive_commands_from_master(replica_socket):
             buffer += data
 
             if not rdb_received:
-                # Handle FULLRESYNC and RDB loading
+                # Handle FULLRESYNC and RDB file loading
                 if buffer.startswith(b"+FULLRESYNC"):
                     newline_index = buffer.find(b"\r\n")
                     if newline_index == -1:
-                        continue  # Wait for more data
+                        continue  
 
                     fullresync_response = buffer[:newline_index].decode().strip()
-                    buffer = buffer[newline_index + 2:]  # Move past FULLRESYNC line
+                    buffer = buffer[newline_index + 2:]  
 
                     parts = fullresync_response.split()
                     if len(parts) == 3 and parts[0] == "FULLRESYNC":
@@ -205,30 +205,30 @@ def receive_commands_from_master(replica_socket):
                             print(f"RDB file detected, length: {rdb_length} bytes. Reading...")
 
                             if len(buffer) < rdb_length_end + 2 + rdb_length:
-                                continue  # Wait for more data
+                                continue  
 
-                            buffer = buffer[rdb_length_end + 2 + rdb_length:]  # Discard RDB file
+                            buffer = buffer[rdb_length_end + 2 + rdb_length:]  
                             rdb_received = True
                             print("RDB file processing completed.")
                         except ValueError:
                             print("Error parsing RDB file length")
                             continue
                     else:
-                        continue  # Wait for more data
+                        continue  
 
             if not rdb_received:
-                continue  # Wait until RDB is received before processing commands
+                continue  
 
             while buffer:
                 try:
                     parts = buffer.split(b"\r\n")
                     if len(parts) < 3:
-                        break  # Incomplete command, wait for more data
+                        break  
 
                     num_args = int(parts[0][1:])
                     expected_lines = 1 + num_args * 2
                     if len(parts) < expected_lines + 1:
-                        break  # Wait for more data
+                        break  
 
                     command_lines = parts[:expected_lines]
                     command_str = "\r\n".join(line.decode("utf-8", errors="ignore") for line in command_lines) + "\r\n"
