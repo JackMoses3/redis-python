@@ -201,15 +201,22 @@ def receive_commands_from_master(replica_socket):
                         print(f"Error converting FULLRESYNC offset: {e}")
                         continue
  
-                # Now handle RDB file properly
+                # Ensure correct parsing of RDB file
                 if buffer.startswith(b"$"):
                     rdb_length_end = buffer.find(b"\r\n")
                     if rdb_length_end != -1:
                         try:
                             rdb_length = int(buffer[1:rdb_length_end])
-                            print(f"RDB file detected, length: {rdb_length} bytes. Skipping...")
-                            buffer = buffer[rdb_length_end + 2 + rdb_length :]
+                            print(f"RDB file detected, length: {rdb_length} bytes. Reading...")
+ 
+                            # Ensure we have the full RDB file before proceeding
+                            if len(buffer) < rdb_length_end + 2 + rdb_length:
+                                continue  # Wait for more data
+ 
+                            buffer = buffer[rdb_length_end + 2 + rdb_length:]  # Discard RDB file
                             rdb_received = True  # Mark RDB as received
+                            print("RDB file processing completed.")
+ 
                         except ValueError:
                             print("Error parsing RDB file length")
                             continue
