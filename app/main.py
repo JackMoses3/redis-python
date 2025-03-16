@@ -279,6 +279,7 @@ def receive_commands_from_master(replica_socket):
 def connect(connection: socket.socket) -> None:
     global store, config
     global replica_connection
+    global replica_ack_offsets
     with connection:
         buffer = ""
         while True:
