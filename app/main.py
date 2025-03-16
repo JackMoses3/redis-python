@@ -7,6 +7,7 @@ import struct
 
 replication_offset = 0
 replica_sockets = []
+replica_ack_offsets = {}  # Tracks latest acknowledged replication offsets
 
 store = {}  # Key-value storage with expiry support
 replica_connection = None  # Replication connection for propagating write commands
@@ -255,11 +256,13 @@ def receive_commands_from_master(replica_socket):
 
                     cmd = args[0].upper()
                     print(f"Received command from master: {args}")
-                    # Handle REPLCONF GETACK *
-                    if cmd == "REPLCONF" and len(args) == 3 and args[1].upper() == "GETACK" and args[2] == "*":
-                        ack_response = f"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n${len(str(pre_offset))}\r\n{pre_offset}\r\n"
-                        replica_socket.sendall(ack_response.encode())
-                        print(f"Sent REPLCONF ACK {pre_offset} response to master")
+                    if cmd == "REPLCONF" and len(args) == 3 and args[1].upper() == "ACK":
+                        try:
+                            ack_offset = int(args[2])
+                            replica_ack_offsets[replica_socket] = ack_offset
+                            print(f"Replica acknowledged offset: {ack_offset}")
+                        except ValueError:
+                            print("Invalid ACK offset received")
                         continue
 
                     if cmd == "SET" and len(args) > 2:
@@ -417,7 +420,18 @@ def connect(connection: socket.socket) -> None:
                         # Store replica connection for later use
                         replica_sockets.append(connection)
                     elif cmd == "WAIT" and len(args) == 3:
-                        response = f":{len(replica_sockets)}\r\n"  # RESP integer format
+                        try:
+                            expected_replicas = int(args[1])
+                            timeout = int(args[2]) / 1000  # Convert ms to seconds
+                            start_time = time.time()
+                            while time.time() - start_time < timeout:
+                                acknowledged_replicas = sum(1 for ack in replica_ack_offsets.values() if ack >= replication_offset)
+                                if acknowledged_replicas >= expected_replicas:
+                                    break
+                                time.sleep(0.01)  # Sleep for 10ms to avoid busy-waiting
+                            response = f":{acknowledged_replicas}\r\n"
+                        except ValueError:
+                            response = "-ERR Invalid WAIT arguments\r\n"
                     else:
                         response = "-ERR unknown command\r\n"
 
