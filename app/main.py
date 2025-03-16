@@ -245,7 +245,13 @@ def receive_commands_from_master(replica_socket):
 
                     cmd = args[0].upper()
                     print(f"Received command from master: {args}")
-
+                    
+                    if cmd == "REPLCONF" and len(args) == 3 and args[1].upper() == "GETACK":
+                        ack_command = f"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n${len(str(replication_offset))}\r\n{replication_offset}\r\n"
+                        replica_socket.sendall(ack_command.encode())
+                        print(f"Replica sent ACK for offset {replication_offset}")
+                        continue
+                    
                     if cmd == "REPLCONF" and len(args) == 3 and args[1].upper() == "ACK":
                         try:
                             ack_offset = int(args[2])
@@ -437,11 +443,11 @@ def connect(connection: socket.socket) -> None:
                             timeout = int(args[2]) / 1000  # Convert milliseconds to seconds
                             start_time = time.time()
 
-                            acknowledged_replicas = sum(1 for ack in replica_ack_offsets.values() if ack >= replication_offset)
-
-                            while acknowledged_replicas < expected_replicas and time.time() - start_time < timeout:
-                                time.sleep(0.01)  # Sleep to avoid busy-waiting
+                            while time.time() - start_time < timeout:
                                 acknowledged_replicas = sum(1 for ack in replica_ack_offsets.values() if ack >= replication_offset)
+                                if acknowledged_replicas >= expected_replicas:
+                                    break
+                                time.sleep(0.01)  # Sleep briefly to avoid busy-waiting
 
                             print(f"WAIT completed: expected={expected_replicas}, acknowledged={acknowledged_replicas}, latest_offset={replication_offset}")
                             response = f":{acknowledged_replicas}\r\n"
