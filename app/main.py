@@ -443,6 +443,7 @@ def connect(connection: socket.socket) -> None:
                             timeout = int(args[2]) / 1000  # Convert ms to seconds
                             start_time = time.time()
 
+                            acknowledged_replicas = 0
                             while time.time() - start_time < timeout:
                                 acknowledged_replicas = sum(1 for ack in replica_ack_offsets.values() if ack >= replication_offset)
                                 if acknowledged_replicas >= expected_replicas:
