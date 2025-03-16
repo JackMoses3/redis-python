@@ -409,7 +409,7 @@ def connect(connection: socket.socket) -> None:
                         # Store replica connection for later use
                         replica_sockets.append(connection)
                     elif cmd == "WAIT" and len(args) == 3:
-                        response = ":0\r\n"
+                        response = f":0\r\n"  # RESP integer format
                     else:
                         response = "-ERR unknown command\r\n"
 
