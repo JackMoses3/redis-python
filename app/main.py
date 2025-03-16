@@ -345,6 +345,15 @@ def connect(connection: socket.socket) -> None:
                                 print(f"Error propagating to replica: {e}")
                                 replica_sockets.remove(replica)  # Remove dead connections
 
+                        # Request acknowledgment from replicas after a write operation
+                        getack_command = "*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n"
+                        for replica in replica_sockets:
+                            try:
+                                replica.sendall(getack_command.encode())
+                            except Exception as e:
+                                print(f"Error sending GETACK request to replica: {e}")
+                                replica_sockets.remove(replica)
+
                         global replication_offset
                         replication_offset += len(command_to_replicate)  # Increment replication offset
                     elif cmd == "DEL" and len(args) >= 2:
@@ -362,6 +371,15 @@ def connect(connection: socket.socket) -> None:
                                 replica.sendall(command_to_replicate.encode())
                             except Exception as e:
                                 print(f"Error propagating to replica: {e}")
+                                replica_sockets.remove(replica)
+
+                        # Request acknowledgment from replicas after a write operation
+                        getack_command = "*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n"
+                        for replica in replica_sockets:
+                            try:
+                                replica.sendall(getack_command.encode())
+                            except Exception as e:
+                                print(f"Error sending GETACK request to replica: {e}")
                                 replica_sockets.remove(replica)
 
                         replication_offset += len(command_to_replicate)
