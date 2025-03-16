@@ -167,7 +167,7 @@ def parse_resp(command: str) -> list[str]:
 
 def receive_commands_from_master(replica_socket):
     """Continuously listen for commands from the master and process them."""
-    global replication_offset, store
+    global replication_offset, store, replica_ack_offsets
     buffer = b""  # Use bytes for buffer to handle binary data
     rdb_received = False
 
@@ -275,7 +275,7 @@ def receive_commands_from_master(replica_socket):
         except Exception as e:
             print(f"Error receiving commands from master: {e}")
             break
-        
+
 def connect(connection: socket.socket) -> None:
     global store, config
     global replica_connection
