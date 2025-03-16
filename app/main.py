@@ -265,16 +265,19 @@ def receive_commands_from_master(replica_socket):
                         key, value = args[1], args[2]
                         store[key] = (value, None)
                         print(f"Replicated SET command: {key} -> {value}")
+                        ack_command = f"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n${len(str(replication_offset))}\r\n{replication_offset}\r\n"
+                        replica_socket.sendall(ack_command.encode())
+                        print(f"Sent ACK for offset {replication_offset} to master")
 
                     elif cmd == "DEL" and len(args) > 1:
                         key = args[1]
                         store.pop(key, None)
                         print(f"Replicated DEL command: {key}")
+                        ack_command = f"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n${len(str(replication_offset))}\r\n{replication_offset}\r\n"
+                        replica_socket.sendall(ack_command.encode())
+                        print(f"Sent ACK for offset {replication_offset} to master")
 
-                    # **Ensure every replica sends an ACK**
-                    ack_command = f"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n${len(str(replication_offset))}\r\n{replication_offset}\r\n"
-                    replica_socket.sendall(ack_command.encode())
-                    print(f"Sent ACK for offset {replication_offset} to master")
+                    # (ACK already sent for SET/DEL commands)
 
                 except UnicodeDecodeError:
                     continue
@@ -417,7 +420,12 @@ def connect(connection: socket.socket) -> None:
                         print(f"Stored keys (non-expired): {valid_keys}")  # Debugging log
                         response = f"*{len(valid_keys)}\r\n" + "".join(f"${len(k)}\r\n{k}\r\n" for k in valid_keys)
                     elif cmd == "REPLCONF" and len(args) >= 2:
-                        response = "+OK\r\n"
+                        if len(args) == 3 and args[1].upper() == "GETACK":
+                            ack_command = f"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n${len(str(replication_offset))}\r\n{replication_offset}\r\n"
+                            connection.sendall(ack_command.encode())
+                            print(f"Sent ACK for offset {replication_offset} upon GETACK request")
+                        else:
+                            response = "+OK\r\n"
                     elif cmd == "PSYNC" and len(args) == 3 and args[1] == "?" and args[2] == "-1":
                         fullresync_response = f"+FULLRESYNC 8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb {replication_offset}\r\n"
                         connection.sendall(fullresync_response.encode())
