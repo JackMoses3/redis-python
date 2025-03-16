@@ -442,13 +442,14 @@ def connect(connection: socket.socket) -> None:
                             expected_replicas = int(args[1])
                             timeout = int(args[2]) / 1000  # Convert ms to seconds
                             start_time = time.time()
-                            
+
                             while time.time() - start_time < timeout:
                                 acknowledged_replicas = sum(1 for ack in replica_ack_offsets.values() if ack >= replication_offset)
                                 if acknowledged_replicas >= expected_replicas:
                                     break
                                 time.sleep(0.01)  # Sleep for 10ms to avoid busy-waiting
-                            
+
+                            print(f"WAIT completed: expected={expected_replicas}, acknowledged={acknowledged_replicas}, latest_offset={replication_offset}")
                             response = f":{acknowledged_replicas}\r\n"
                         except ValueError:
                             response = "-ERR Invalid WAIT arguments\r\n"
