@@ -265,7 +265,7 @@ def receive_commands_from_master(replica_socket):
                         store.pop(key, None)
                         print(f"Replicated DEL command: {key}")
 
-                    # **Send ACK after processing any write command**
+                    # **Ensure every replica sends an ACK**
                     ack_command = f"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n${len(str(replication_offset))}\r\n{replication_offset}\r\n"
                     replica_socket.sendall(ack_command.encode())
                     print(f"Sent ACK for offset {replication_offset} to master")
