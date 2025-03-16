@@ -178,17 +178,16 @@ def receive_commands_from_master(replica_socket):
                 break
             buffer += data
 
-            # Handle FULLRESYNC response and RDB file transfer
             if not rdb_received:
                 if buffer.startswith(b"+FULLRESYNC"):
                     try:
                         newline_index = buffer.find(b"\r\n")
                         if newline_index == -1:
                             continue  # Wait for more data
-
+ 
                         fullresync_response = buffer[:newline_index].decode().strip()
                         buffer = buffer[newline_index + 2:]  # Move past FULLRESYNC line
-
+ 
                         parts = fullresync_response.split()
                         if len(parts) == 3 and parts[0] == "FULLRESYNC":
                             master_repl_id = parts[1]
@@ -197,12 +196,12 @@ def receive_commands_from_master(replica_socket):
                         else:
                             print(f"Error parsing FULLRESYNC response: {fullresync_response}")
                             continue
-
+ 
                     except ValueError as e:
                         print(f"Error converting FULLRESYNC offset: {e}")
                         continue
-
-                # Now handle RDB file
+ 
+                # Now handle RDB file properly
                 if buffer.startswith(b"$"):
                     rdb_length_end = buffer.find(b"\r\n")
                     if rdb_length_end != -1:
@@ -210,7 +209,7 @@ def receive_commands_from_master(replica_socket):
                             rdb_length = int(buffer[1:rdb_length_end])
                             print(f"RDB file detected, length: {rdb_length} bytes. Skipping...")
                             buffer = buffer[rdb_length_end + 2 + rdb_length :]
-                            rdb_received = True
+                            rdb_received = True  # Mark RDB as received
                         except ValueError:
                             print("Error parsing RDB file length")
                             continue
