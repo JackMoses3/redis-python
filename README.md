@@ -1,60 +1,43 @@
-[![progress-banner](https://backend.codecrafters.io/progress/redis/3b1eba78-ad05-4eeb-a7a1-362ef6abf8be)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
+# Redis Replica Project
 
-This is a starting point for Python solutions to the
-["Build Your Own Redis" Challenge](https://codecrafters.io/challenges/redis).
+This is a simplified, custom implementation of a Redis-like key-value store in Python. It includes basic support for key-value storage with expiry, a subset of the Redis command set (such as `PING`, `ECHO`, `GET`, `SET`, `DEL`, `CONFIG GET`, and `KEYS`), and rudimentary replication functionality that mimics some of Redis’ master–replica features.
 
-In this challenge, you'll build a toy Redis clone that's capable of handling
-basic commands like `PING`, `SET` and `GET`. Along the way we'll learn about
-event loops, the Redis protocol and more.
+## Features
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+- **Key-Value Store:**  
+  Supports storing string values with optional expiry times. Expired keys are automatically skipped/removed.
 
-# Passing the first stage
+- **Basic Commands:**  
+  Implements commands like:
+  - `PING` / `ECHO` for connectivity checks.
+  - `GET` / `SET` for retrieving and updating keys.
+  - `DEL` to remove keys.
+  - `CONFIG GET` to retrieve configuration parameters.
+  - `KEYS *` to list all non-expired keys.
 
-The entry point for your Redis implementation is in `app/main.py`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
+- **RDB File Loading:**  
+  On startup, the server loads key-value pairs (with expiry support) from an RDB file if it exists in the specified directory.
 
-```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
-```
+- **Replication Support:**  
+  When run as a replica (using the `--replicaof` argument), the server connects to a master instance, receives write commands (such as `SET` and `DEL`), and sends acknowledgments using a simplified version of the Redis replication protocol. It also supports the `PSYNC` command for initial synchronization.
 
-That's all!
+- **RESP Protocol:**  
+  The project uses the Redis Serialization Protocol (RESP) for command parsing and formatting responses.
 
-# Stage 2 & beyond
+## Prerequisites
 
-Note: This section is for stages 2 and beyond.
+- **Python 3.6+**  
+  This project uses only Python’s standard libraries such as `socket`, `threading`, `struct`, `time`, `os`, and `sys`.
 
-1. Ensure you have `python (3.x)` installed locally
-1. Run `./your_program.sh` to run your Redis server, which is implemented in
-   `app/main.py`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+## Installation
 
-# Troubleshooting
+1. **Clone the repository** (if applicable) or copy the source file into your working directory.
 
-## module `socket` has no attribute `create_server`
+2. **Ensure you have Python 3 installed.**
 
-When running your server locally, you might see an error like this:
+## Usage
 
-```
-Traceback (most recent call last):
-  File "/.../python3.7/runpy.py", line 193, in _run_module_as_main
-    "__main__", mod_spec)
-  File "/.../python3.7/runpy.py", line 85, in _run_code
-    exec(code, run_globals)
-  File "/app/app/main.py", line 11, in <module>
-    main()
-  File "/app/app/main.py", line 6, in main
-    s = socket.create_server(("localhost", 6379), reuse_port=True)
-AttributeError: module 'socket' has no attribute 'create_server'
-```
+Run the project using the Python interpreter. The server accepts several optional command-line arguments:
 
-This is because `socket.create_server` was introduced in Python 3.8, and you
-might be running an older version.
-
-You can fix this by installing Python 3.8 locally and using that.
-
-If you'd like to use a different version of Python, change the `language_pack`
-value in `codecrafters.yml`.
+```bash
+python redis_project.py [--dir <directory>] [--dbfilename <filename>] [--port <port>] [--replicaof <master_host> <master_port>]
